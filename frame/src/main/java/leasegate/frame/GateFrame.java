@@ -1,6 +1,9 @@
 package leasegate.frame;
 
+import javafx.animation.Animation;
+import javafx.animation.KeyFrame;
 import javafx.animation.PauseTransition;
+import javafx.animation.Timeline;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
@@ -15,6 +18,7 @@ import javafx.scene.shape.Rectangle;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
+import javafx.stage.WindowEvent;
 import javafx.util.Duration;
 
 /// The frame every window of an app is built in. There is no platform title bar: the app's colour
@@ -53,6 +57,9 @@ public final class GateFrame {
     final boolean resizable;
     final Style style;
     boolean closable = true, taskbar;
+    /// Whether the keyboard really types into this window (see Foreground), which is what the glow shows.
+    boolean live, painted;
+    long hwnd;
     Runnable onClose;
 
     /// A fixed-size window.
@@ -94,6 +101,17 @@ public final class GateFrame {
         var ring = new Region();
         ring.setMouseTransparent(true);
         var glow = Glow.of(brand.color());
+        // Shown while the window is up but the keyboard types into another program.
+        var elsewhere = new Label("Click this window before typing: keys are going to another window.");
+        elsewhere.setMaxWidth(Double.MAX_VALUE);
+        elsewhere.setWrapText(true);
+        elsewhere.setMouseTransparent(true);
+        elsewhere.setStyle("-fx-background-color: #fff3cd; -fx-text-fill: #5c4400; -fx-font-weight: bold; -fx-font-size: 11; -fx-padding: 6 14;"
+            + " -fx-border-color: transparent transparent #e0c060 transparent;");
+        elsewhere.setVisible(false);
+        var content = new StackPane(body, elsewhere);
+        StackPane.setAlignment(elsewhere, Pos.TOP_CENTER);
+        VBox.setVgrow(content, Priority.ALWAYS);
         Scene scene;
         Region card;
         Node glass;
@@ -104,7 +122,7 @@ public final class GateFrame {
             band.setLeft(left);
             if (!MAC && closable) band.setRight(winClose());
             glass = glass(band);
-            card = new VBox(glass, body);
+            card = new VBox(glass, content);
             card.setStyle("-fx-background-color: white; -fx-background-radius: " + RADIUS + ";");
             var clip = new Rectangle();
             clip.setArcWidth(RADIUS * 2);
@@ -121,7 +139,7 @@ public final class GateFrame {
             scene = new Scene(root);
             scene.setFill(Color.TRANSPARENT);
             paint = () -> {
-                var on = stage.isFocused();
+                var on = live;
                 card.setEffect(on ? null : Glow.grey());
                 lit.setEffect(on ? glow.halo() : Glow.IDLE_SHADOW);
                 ring.setStyle("-fx-border-radius: " + RADIUS + "; -fx-border-width: 1.5; -fx-border-color: " + (on ? glow.rim() : "#c4c4c4") + ";");
@@ -137,24 +155,37 @@ public final class GateFrame {
             // The HeaderBar's slots take only their content's width, so the glass is painted
             // behind the whole bar, not on a slot: it then spans the window however wide it gets.
             glass = glass(header);
-            card = new VBox(glass, body);
+            card = new VBox(glass, content);
             card.setStyle("-fx-background-color: white;");
             scene = new Scene(new StackPane(card, ring));
             paint = () -> {
-                var on = stage.isFocused();
+                var on = live;
                 card.setEffect(on ? null : Glow.grey());
                 ring.setStyle("-fx-border-width: 2; -fx-border-color: " + (on ? glow.rim() : "#c4c4c4") + ";");
                 ring.setEffect(on ? glow.inner() : null);
             };
         }
-        stage.focusedProperty().addListener((o, was, now) -> paint.run());
-        paint.run();
+        var repaint = (Runnable) () -> {
+            var now = stage.isFocused() && Foreground.isFront(hwnd);
+            elsewhere.setVisible(stage.isShowing() && !now);
+            if (now == live && painted) return;
+            live = now;
+            painted = true;
+            paint.run();
+        };
+        stage.focusedProperty().addListener((o, was, now) -> repaint.run());
+        // Windows says nothing to JavaFX when it refuses the foreground, so ask it a few times a second.
+        var poll = new Timeline(new KeyFrame(Duration.millis(150), x -> repaint.run()));
+        poll.setCycleCount(Animation.INDEFINITE);
+        stage.addEventHandler(WindowEvent.WINDOW_SHOWN, x -> { hwnd = Foreground.handle(stage.getTitle()); repaint.run(); poll.play(); });
+        stage.addEventHandler(WindowEvent.WINDOW_HIDDEN, x -> poll.stop());
+        repaint.run();
 
         stage.setScene(scene);
         stage.setTitle(brand.product().toUpperCase() + ": " + subtitle);
         stage.getIcons().setAll(brand.icon());
         stage.setOnCloseRequest(e -> { e.consume(); requestClose(); });
-        stage.setOnShown(e -> {
+        stage.addEventHandler(WindowEvent.WINDOW_SHOWN, e -> {
             stage.toFront();
             if (!taskbar) {
                 TaskbarButton.remove(stage.getTitle());
