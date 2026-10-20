@@ -8,7 +8,6 @@ import javafx.animation.*;
 import javafx.application.Platform;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.SeparatorMenuItem;
-import javafx.scene.image.Image;
 import javafx.stage.Stage;
 
 import com.dustinredmond.fxtrayicon.FXTrayIcon;
@@ -27,7 +26,7 @@ public final class TrayShell<S extends Scope<S>> {
     final PassphraseGate passphraseGate;
     final AccessListWindow<S> accessList;
     final Supplier<String> statusLine;
-    final Image image;
+    final Brand brand;
     final List<MenuItem> extraItems = new ArrayList<>();
     final List<Runnable> refreshers = new ArrayList<>();
     String quitLabel;
@@ -36,13 +35,13 @@ public final class TrayShell<S extends Scope<S>> {
     MenuItem stateItem, blanketItem, blanketExtendItem;
     String tooltip = "";
 
-    public TrayShell(Stage statusStage, LeaseEngine<S> engine, PassphraseGate passphraseGate, Image image, Supplier<String> statusLine) {
+    public TrayShell(Stage statusStage, LeaseEngine<S> engine, PassphraseGate passphraseGate, Brand brand, Supplier<String> statusLine) {
         this.statusStage = statusStage;
         this.engine = engine;
         this.passphraseGate = passphraseGate;
-        this.image = image;
+        this.brand = brand;
         this.statusLine = statusLine;
-        this.accessList = new AccessListWindow<>(engine, passphraseGate);
+        this.accessList = new AccessListWindow<>(engine, passphraseGate, brand);
         this.quitLabel = "Quit " + product();
     }
 
@@ -57,7 +56,7 @@ public final class TrayShell<S extends Scope<S>> {
     public AccessListWindow<S> accessList() { return accessList; }
 
     public void install() {
-        icon = new FXTrayIcon(statusStage, image);
+        icon = new FXTrayIcon(statusStage, brand.icon());
         icon.noDefaultAction();
         icon.setOnAction(e -> accessList.show());
         // FXTrayIcon refuses a label already in the menu, on the AWT thread where nobody sees the

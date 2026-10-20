@@ -15,17 +15,19 @@ public final class FxTrust<S extends Scope<S>> implements TrustApproval<S> {
 
     final PassphraseGate gate;
     final LeaseRules<S> rules;
+    final Brand brand;
 
-    public FxTrust(PassphraseGate gate, LeaseRules<S> rules) {
+    public FxTrust(PassphraseGate gate, LeaseRules<S> rules, Brand brand) {
         this.gate = gate;
         this.rules = rules;
+        this.brand = brand;
     }
 
     @Override public Optional<Decision<S>> decide(Request<S> request) {
         var future = new CompletableFuture<Optional<Decision<S>>>();
         var window = new CompletableFuture<TrustWindow<S>>();
         Platform.runLater(() -> {
-            var w = new TrustWindow<>(request, gate, rules, future::complete);
+            var w = new TrustWindow<>(request, gate, rules, brand, future::complete);
             window.complete(w);
             w.show();
         });

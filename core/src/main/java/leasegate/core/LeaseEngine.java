@@ -36,6 +36,7 @@ public final class LeaseEngine<S extends Scope<S>> {
     final Set<String> warned = ConcurrentHashMap.newKeySet();
     volatile Consumer<Expiring> onExpiring = e -> {};
     volatile TrustApproval<S> trustApproval = r -> Optional.empty();
+    volatile Instant lastActivity = Instant.now();
 
     public LeaseEngine(LeaseRules<S> rules, Approval<S> approval, KeyedAppStore<S> keyed) {
         this.rules = rules;
@@ -49,6 +50,7 @@ public final class LeaseEngine<S extends Scope<S>> {
 
     public LeaseEngine<S> startSweep() {
         Thread.ofPlatform().name(rules.product() + "-sweep").daemon().start(this::sweep);
+        IdleTrim.start(rules.product(), () -> lastActivity, Duration.ofMinutes(2));
         return this;
     }
 
@@ -57,6 +59,7 @@ public final class LeaseEngine<S extends Scope<S>> {
     /// An attested request: a grant that already covers it, or the human's answer. `raw` is the
     /// chain captured the moment the client connected.
     public Outcome<Grant<S>> attest(PeerIdentity peer, List<ProcessTree.RawLink> raw, S requested, String label) {
+        lastActivity = Instant.now();
         var tree = ProcessTree.snapshot();
         var chain = tree.decorate(raw);
         var found = grants.findValid(peer.imagePath(), chain, requested);
@@ -77,6 +80,7 @@ public final class LeaseEngine<S extends Scope<S>> {
     /// approval held by that key covers it or the human is asked.
     public Outcome<KeyedApp<S>> keyed(PeerIdentity peer, List<ProcessTree.RawLink> raw, String publicKey, S requested,
                                       String label, FrameIo io) {
+        lastActivity = Instant.now();
         var nonce = KeyedAppStore.newChallenge();
         io.writeFrame(Replies.challenge(nonce));
         if (!KeyedAppStore.verify(publicKey, nonce, Handshake.signatureOf(io.readFrame())))
@@ -97,6 +101,7 @@ public final class LeaseEngine<S extends Scope<S>> {
     /// Trust an ancestor of the client -- `pid`, or the nearest agent session -- and everything it
     /// starts. Ends with a grant that covers any program under it, or a refusal.
     public Outcome<Grant<S>> trust(PeerIdentity peer, List<ProcessTree.RawLink> raw, S scope, String label, Long pid) {
+        lastActivity = Instant.now();
         var tree = ProcessTree.snapshot();
         return switch (TrustTarget.pick(tree.decorate(raw), tree, pid)) {
             case TrustTarget.Refused r -> Outcome.refused(r.error(), r.hint());

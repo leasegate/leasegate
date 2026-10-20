@@ -1,5 +1,6 @@
 package leasegate.ui;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
 
@@ -18,23 +19,27 @@ import leasegate.core.access.*;
 /// The one approval window, for both kinds of request. Attested: the human picks how far up the
 /// process tree the approval reaches, and a broader anchor visibly shortens the longest duration.
 /// Keyed: the approval belongs to the app's key and its length is capped by how narrow the scope
-/// is. Nothing is granted until Approve. No text input here, so bare letters are the shortcuts.
+/// is. Nothing is granted until Approve. The gate's brand band comes first, so it is plain which
+/// gate is asking; keys are ignored for the first moments, and approving takes F2, never a letter.
 final class ApprovalWindow<S extends Scope<S>> {
 
     final Approval.Request<S> r;
     final PassphraseGate passphraseGate;
     final LeaseRules<S> rules;
+    final Brand brand;
     final Consumer<Optional<Approval.Decision<S>>> onDecision;
     final boolean keyed;
     final AncestryTableView table;
     final DurationChipsView chips;
     final Stage stage = new Stage(StageStyle.UTILITY);
     boolean decided;
+    Arming arming;
 
-    ApprovalWindow(Approval.Request<S> r, PassphraseGate passphraseGate, LeaseRules<S> rules, Consumer<Optional<Approval.Decision<S>>> onDecision) {
+    ApprovalWindow(Approval.Request<S> r, PassphraseGate passphraseGate, LeaseRules<S> rules, Brand brand, Consumer<Optional<Approval.Decision<S>>> onDecision) {
         this.r = r;
         this.passphraseGate = passphraseGate;
         this.rules = rules;
+        this.brand = brand;
         this.onDecision = onDecision;
         this.keyed = r.kind() == Approval.Kind.KEYED;
         this.table = keyed ? null : new AncestryTableView(AncestryRow.build(r.chain(), r.tree(), r.requested(), rules));
@@ -42,11 +47,14 @@ final class ApprovalWindow<S extends Scope<S>> {
     }
 
     void show() {
-        var approve = ApprovalParts.button("A  Approve", "#2e7d32", this::approve);
-        var deny = ApprovalParts.button("D  Deny", "#b3261e", () -> decide(Optional.empty()));
-        var legend = ApprovalParts.small((keyed ? "" : "↑/↓ anchor · ") + "←/→ duration · A approve · D or Esc deny", "#777");
+        var approve = ApprovalParts.button("F2  Approve", "#2e7d32", this::approve);
+        var deny = ApprovalParts.button("Esc  Deny", "#b3261e", () -> decide(Optional.empty()));
+        var legend = ApprovalParts.small((keyed ? "" : "↑/↓ anchor · ") + "←/→ duration · F2 approve · Esc deny", "#777");
+        var armingLine = ApprovalParts.line(" ", ApprovalParts.AMBER);
+        arming = new Arming(List.of(approve, deny), armingLine);
 
-        var root = new VBox(10, ApprovalParts.header(r), ApprovalParts.scope(r.requested(), rules));
+        var root = new VBox(10, brand.band("approval request: " + (keyed ? "a keyed app" : "a process") + " asks for access"),
+            ApprovalParts.header(r), ApprovalParts.scope(r.requested(), rules));
         if (keyed) {
             root.getChildren().add(ApprovalParts.keyedNote(r));
             chips.setCap(rules.keyedMaxMinutes(r.requested()), r.requested().requestedMinutes(), "how narrowly it is scoped");
@@ -63,13 +71,14 @@ final class ApprovalWindow<S extends Scope<S>> {
             table.selectHop(suggested >= 0 ? suggested : hops.isEmpty() ? -1 : hops.getLast());
             onAnchorChanged();
         }
-        root.getChildren().addAll(chips.node(), new HBox(8, approve, deny), legend);
+        root.getChildren().addAll(chips.node(), new HBox(8, approve, deny), armingLine, legend);
         root.setPadding(new Insets(14));
         root.setPrefWidth(660);
 
         var scene = new Scene(root);
         scene.addEventFilter(KeyEvent.KEY_PRESSED, this::onKey);
-        stage.setTitle(rules.product() + ": request from " + r.app());
+        stage.setTitle(brand.product().toUpperCase() + ": request from " + r.app());
+        stage.getIcons().add(brand.icon());
         stage.setScene(scene);
         stage.setAlwaysOnTop(true);
         stage.setOnCloseRequest(e -> decide(Optional.empty()));
@@ -84,11 +93,12 @@ final class ApprovalWindow<S extends Scope<S>> {
     }
 
     void onKey(KeyEvent e) {
+        if (!arming.armed) { e.consume(); return; }
         switch (e.getCode()) {
             case UP, DOWN -> { if (!keyed) moveAnchor(e.getCode() == KeyCode.DOWN); }
             case LEFT, RIGHT -> chips.move(e.getCode() == KeyCode.RIGHT);
-            case A -> approve();
-            case D, ESCAPE -> decide(Optional.empty());
+            case F2 -> approve();
+            case ESCAPE -> decide(Optional.empty());
             default -> { return; }
         }
         e.consume();
@@ -102,6 +112,7 @@ final class ApprovalWindow<S extends Scope<S>> {
     }
 
     void approve() {
+        if (!arming.armed) return;
         var minutes = chips.selectedMinutes();
         if (minutes <= 0) return;
         AncestryNode anchor = null;

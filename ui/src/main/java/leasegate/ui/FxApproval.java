@@ -18,17 +18,19 @@ public final class FxApproval<S extends Scope<S>> implements Approval<S> {
 
     final PassphraseGate passphraseGate;
     final LeaseRules<S> rules;
+    final Brand brand;
 
-    public FxApproval(PassphraseGate passphraseGate, LeaseRules<S> rules) {
+    public FxApproval(PassphraseGate passphraseGate, LeaseRules<S> rules, Brand brand) {
         this.passphraseGate = passphraseGate;
         this.rules = rules;
+        this.brand = brand;
     }
 
     @Override public Optional<Decision<S>> decide(Request<S> request) {
         var future = new CompletableFuture<Optional<Decision<S>>>();
         var window = new CompletableFuture<ApprovalWindow<S>>();
         Platform.runLater(() -> {
-            var w = new ApprovalWindow<>(request, passphraseGate, rules, future::complete);
+            var w = new ApprovalWindow<>(request, passphraseGate, rules, brand, future::complete);
             window.complete(w);
             w.show();
         });

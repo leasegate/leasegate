@@ -2,6 +2,7 @@ package leasegate.ui;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 
 import javafx.animation.*;
 import javafx.geometry.Insets;
@@ -20,10 +21,10 @@ import leasegate.core.access.Scope;
 /// Five minutes before an attested grant with a live connection ends: extend it or let it lapse.
 /// Extend adds the grant's own duration (at least half an hour) on top of what is left, never leaving
 /// more than its cap, and the window shows the new end for a moment before closing so it is plain
-/// that it worked. Closes itself at expiry. No text input, so bare letters are the shortcuts.
+/// that it worked. Closes itself at expiry. Keys are ignored for the first moments; F2 extends, Esc lets it lapse.
 public final class ExpiryWarningWindow {
 
-    public static <S extends Scope<S>> void show(LeaseEngine<S> engine, PassphraseGate gate, LeaseEngine.Expiring e) {
+    public static <S extends Scope<S>> void show(LeaseEngine<S> engine, PassphraseGate gate, Brand brand, LeaseEngine.Expiring e) {
         var stage = new Stage(StageStyle.UTILITY);
         var countdown = new Label();
         countdown.setStyle("-fx-font-size: 13; -fx-font-weight: bold;");
@@ -51,17 +52,22 @@ public final class ExpiryWarningWindow {
             close.setOnFinished(x -> stage.close());
             close.play();
         };
-        var buttons = new HBox(8, ApprovalParts.button("E  Extend", "#2e6da8", extend),
-            ApprovalParts.button("L  Let it expire", "#777", stage::close));
-        var root = new VBox(10, countdown, ApprovalParts.small("Extending keeps the same anchor and scope, and adds time up to the cap this approval first earned.", "#555"), buttons);
+        var extendButton = ApprovalParts.button("F2  Extend", "#2e6da8", extend);
+        var lapseButton = ApprovalParts.button("Esc  Let it expire", "#777", stage::close);
+        var buttons = new HBox(8, extendButton, lapseButton);
+        var armingLine = ApprovalParts.line(" ", ApprovalParts.AMBER);
+        var arming = new Arming(List.of(extendButton, lapseButton), armingLine);
+        var root = new VBox(10, brand.band("an approval is ending"), countdown, ApprovalParts.small("Extending keeps the same anchor and scope, and adds time up to the cap this approval first earned.", "#555"), buttons, armingLine);
         root.setPadding(new Insets(14));
         root.setPrefWidth(420);
         var scene = new Scene(root);
         scene.setOnKeyPressed(k -> {
-            if (k.getCode() == KeyCode.E) extend.run();
-            else if (k.getCode() == KeyCode.L || k.getCode() == KeyCode.ESCAPE) stage.close();
+            if (!arming.armed) return;
+            if (k.getCode() == KeyCode.F2) extend.run();
+            else if (k.getCode() == KeyCode.ESCAPE) stage.close();
         });
-        stage.setTitle(engine.rules.product() + ": approval ending");
+        stage.getIcons().add(brand.icon());
+        stage.setTitle(brand.product().toUpperCase() + ": approval ending");
         stage.setScene(scene);
         stage.setAlwaysOnTop(true);
         stage.show();

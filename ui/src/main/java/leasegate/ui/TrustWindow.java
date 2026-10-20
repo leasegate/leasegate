@@ -26,6 +26,7 @@ final class TrustWindow<S extends Scope<S>> {
     final TrustApproval.Request<S> r;
     final PassphraseGate gate;
     final LeaseRules<S> rules;
+    final Brand brand;
     final Consumer<Optional<TrustApproval.Decision<S>>> onDecision;
     final DurationChipsView chips = new DurationChipsView(DurationChips.TRUST);
     final Stage stage = new Stage(StageStyle.UTILITY);
@@ -35,10 +36,11 @@ final class TrustWindow<S extends Scope<S>> {
     final Label error = PassphrasePrompt.errorLabel();
     boolean decided;
 
-    TrustWindow(TrustApproval.Request<S> r, PassphraseGate gate, LeaseRules<S> rules, Consumer<Optional<TrustApproval.Decision<S>>> onDecision) {
+    TrustWindow(TrustApproval.Request<S> r, PassphraseGate gate, LeaseRules<S> rules, Brand brand, Consumer<Optional<TrustApproval.Decision<S>>> onDecision) {
         this.r = r;
         this.gate = gate;
         this.rules = rules;
+        this.brand = brand;
         this.onDecision = onDecision;
     }
 
@@ -55,7 +57,7 @@ final class TrustWindow<S extends Scope<S>> {
         var approve = ApprovalParts.button("Enter  Approve", "#2e7d32", this::approve);
         var deny = ApprovalParts.button("Esc  Deny", "#b3261e", () -> decide(Optional.empty()));
         passphrase.setPromptText("passphrase");
-        root.getChildren().addAll(band, name, what,
+        root.getChildren().addAll(brand.band("trust request: a process and everything it starts"), band, name, what,
             ApprovalParts.box("command line of the process to be trusted", ProcInfo.commandLine(t.pid())),
             ApprovalParts.box("its working directory", ProcInfo.currentDirectory(t.pid())),
             asked, ApprovalParts.scope(r.requested(), rules), chips.node(),
@@ -67,7 +69,8 @@ final class TrustWindow<S extends Scope<S>> {
 
         var scene = new Scene(root);
         scene.addEventFilter(KeyEvent.KEY_PRESSED, this::onKey);
-        stage.setTitle(rules.product() + ": trust " + t.imageName() + " for hours");
+        stage.getIcons().add(brand.icon());
+        stage.setTitle(brand.product().toUpperCase() + ": trust " + t.imageName() + " for hours");
         stage.setScene(scene);
         stage.setAlwaysOnTop(true);
         stage.setOnCloseRequest(e -> decide(Optional.empty()));

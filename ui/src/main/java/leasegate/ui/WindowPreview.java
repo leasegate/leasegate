@@ -7,12 +7,12 @@ import leasegate.core.access.*;
 /// Application Thread.
 public final class WindowPreview {
 
-    public static <S extends Scope<S>> void approval(Approval.Request<S> r, PassphraseGate gate, LeaseRules<S> rules) {
-        new ApprovalWindow<>(r, gate, rules, d -> {}).show();
+    public static <S extends Scope<S>> void approval(Approval.Request<S> r, PassphraseGate gate, LeaseRules<S> rules, Brand brand) {
+        new ApprovalWindow<>(r, gate, rules, brand, d -> {}).show();
     }
 
-    public static <S extends Scope<S>> void trust(TrustApproval.Request<S> r, PassphraseGate gate, LeaseRules<S> rules) {
-        new TrustWindow<>(r, gate, rules, d -> {}).show();
+    public static <S extends Scope<S>> void trust(TrustApproval.Request<S> r, PassphraseGate gate, LeaseRules<S> rules, Brand brand) {
+        new TrustWindow<>(r, gate, rules, brand, d -> {}).show();
     }
 
     private WindowPreview() {}

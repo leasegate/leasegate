@@ -25,13 +25,15 @@ public final class AccessListWindow<S extends Scope<S>> {
 
     final LeaseEngine<S> engine;
     final PassphraseGate passphraseGate;
+    final Brand brand;
     final Stage stage = new Stage();
     final VBox rows = new VBox(6);
     Timeline ticker;
 
-    public AccessListWindow(LeaseEngine<S> engine, PassphraseGate passphraseGate) {
+    public AccessListWindow(LeaseEngine<S> engine, PassphraseGate passphraseGate, Brand brand) {
         this.engine = engine;
         this.passphraseGate = passphraseGate;
+        this.brand = brand;
     }
 
     String product() { return engine.rules.product(); }
@@ -45,7 +47,7 @@ public final class AccessListWindow<S extends Scope<S>> {
         var scroll = new ScrollPane(rows);
         scroll.setFitToWidth(true);
         scroll.setPrefHeight(320);
-        var root = new VBox(10, header, scroll, ApprovalParts.small("Esc closes · keyed approvals survive a restart, attested ones do not", "#777"));
+        var root = new VBox(10, brand.band("who has access right now"), header, scroll, ApprovalParts.small("Esc closes · keyed approvals survive a restart, attested ones do not", "#777"));
         root.setPadding(new Insets(12));
         root.setPrefWidth(720);
         ticker = new Timeline(new KeyFrame(javafx.util.Duration.seconds(1), e -> refresh()));
@@ -55,7 +57,8 @@ public final class AccessListWindow<S extends Scope<S>> {
         refresh();
         var scene = new Scene(root);
         scene.setOnKeyPressed(e -> { if (e.getCode() == KeyCode.ESCAPE) stage.hide(); });
-        stage.setTitle(product() + ": access");
+        stage.getIcons().add(brand.icon());
+        stage.setTitle(product().toUpperCase() + ": access");
         stage.setScene(scene);
         stage.show();
     }
