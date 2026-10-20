@@ -12,5 +12,6 @@
     <description>An ssh-agent served by a leasegate gate: Ed25519 keys that never leave the gate, every signature approved.</description>
     <dependencies>
         <dependency><groupId>io.github.leasegate</groupId><artifactId>leasegate-core</artifactId><version>${project.version}</version></dependency>
+        <dependency><groupId>io.github.leasegate</groupId><artifactId>leasegate-vault</artifactId><version>${project.version}</version></dependency>
     </dependencies>
 </project>

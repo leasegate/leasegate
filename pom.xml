@@ -31,8 +31,8 @@
         <module>transport</module>
         <module>core</module>
         <module>vault</module>
-        <module>ui</module>
         <module>sshagent</module>
+        <module>ui</module>
     </modules>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
