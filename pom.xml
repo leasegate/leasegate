@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>io.github.leasegate</groupId>
+    <artifactId>leasegate-parent</artifactId>
+    <version>0.1-SNAPSHOT</version>
+    <packaging>pom</packaging>
+    <name>leasegate</name>
+    <description>Time-limited, scoped, human-approved access to the credentials on a workstation, for CLI tools and AI agents.</description>
+    <url>https://github.com/leasegate/leasegate</url>
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+        </license>
+    </licenses>
+    <developers>
+        <developer>
+            <id>leasegate</id>
+            <name>Ivan Velikanov</name>
+            <email>ivan.velikanov.dev@gmail.com</email>
+            <url>https://github.com/leasegate</url>
+        </developer>
+    </developers>
+    <scm>
+        <url>https://github.com/leasegate/leasegate</url>
+        <connection>scm:git:https://github.com/leasegate/leasegate.git</connection>
+        <developerConnection>scm:git:git@github.com:leasegate/leasegate.git</developerConnection>
+    </scm>
+    <modules>
+        <module>transport</module>
+        <module>core</module>
+        <module>vault</module>
+        <module>ui</module>
+        <module>sshagent</module>
+    </modules>
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <maven.compiler.release>25</maven.compiler.release>
+        <jackson.version>2.21.2</jackson.version>
+        <javafx.version>25.0.4</javafx.version>
+        <fxtrayicon.version>4.2.0</fxtrayicon.version>
+    </properties>
+    <profiles>
+        <profile>
+            <id>javafx-win</id>
+            <activation><os><family>windows</family></os></activation>
+            <properties><javafx.platform>win</javafx.platform></properties>
+        </profile>
+        <profile>
+            <id>javafx-mac-aarch64</id>
+            <activation><os><family>mac</family><arch>aarch64</arch></os></activation>
+            <properties><javafx.platform>mac-aarch64</javafx.platform></properties>
+        </profile>
+        <profile>
+            <id>javafx-mac-x64</id>
+            <activation><os><family>mac</family><arch>x86_64</arch></os></activation>
+            <properties><javafx.platform>mac</javafx.platform></properties>
+        </profile>
+    </profiles>
+</project>
