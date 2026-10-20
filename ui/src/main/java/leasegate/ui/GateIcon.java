@@ -15,6 +15,13 @@ public final class GateIcon {
 
     public static Image image() { return image("#2e6da8"); }
 
+    /// A gate's own tray picture, shipped as a resource beside `owner`; the drawn padlock if absent.
+    public static Image image(Class<?> owner, String resource, String fallbackColor) {
+        try (var in = owner.getResourceAsStream(resource)) {
+            return in == null ? image(fallbackColor) : new Image(in);
+        } catch (Exception e) { return image(fallbackColor); }
+    }
+
     /// The padlock in another colour, so two gates side by side in the tray can be told apart.
     public static Image image(String color) {
         var size = 32;
