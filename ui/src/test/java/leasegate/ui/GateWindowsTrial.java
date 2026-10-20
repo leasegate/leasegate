@@ -39,7 +39,7 @@ public final class GateWindowsTrial extends Application {
         @Override public Items stored(Items s) { return new Items(s.items(), null); }
     };
 
-    static final Brand GIT = new Brand("gitgate", "#2e7d32", GateIcon.image("#2e7d32"));
+    static final Brand GIT = new Brand("gitgate", "#2e7d32", GateIcons.leasegate());
 
     public static void main(String[] args) { launch(args); }
 

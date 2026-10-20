@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>io.github.leasegate</groupId>
+        <artifactId>leasegate-parent</artifactId>
+        <version>0.2-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+    <artifactId>leasegate-tray</artifactId>
+    <name>leasegate tray: a JavaFX tray icon and menu</name>
+    <packaging>jar</packaging>
+    <description>A system tray icon for JavaFX apps whose menu is drawn by JavaFX, not by the platform AWT menu: proper Unicode, the app colour and icon in a header, a live status line, arrow keys, Enter and Esc. Left click and right click are the app own. Depends on JavaFX only.</description>
+    <dependencies>
+        <dependency><groupId>org.openjfx</groupId><artifactId>javafx-base</artifactId><version>${javafx.version}</version><classifier>${javafx.platform}</classifier></dependency>
+        <dependency><groupId>org.openjfx</groupId><artifactId>javafx-graphics</artifactId><version>${javafx.version}</version><classifier>${javafx.platform}</classifier></dependency>
+        <dependency><groupId>org.openjfx</groupId><artifactId>javafx-controls</artifactId><version>${javafx.version}</version><classifier>${javafx.platform}</classifier></dependency>
+    </dependencies>
+</project>

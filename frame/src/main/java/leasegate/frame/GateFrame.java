@@ -26,8 +26,8 @@ import javafx.util.Duration;
 /// seen. While the window has focus it glows in the light of the app's colour; without focus the
 /// whole window -- band, buttons, text -- goes grey, so the live window stands out among several.
 /// The only header button is close: a Windows ✕ on the right, or mac traffic lights on the left
-/// above the band. Closing is the window's own cancel. By default a window has no taskbar button
-/// but stays in Alt+Tab.
+/// above the band. Closing is the window's own cancel. Every window has a taskbar button, so it is
+/// in Alt+Tab (without the button, Windows 11 leaves it out of Alt+Tab as well).
 ///
 /// Two styles, chosen per app with `styles(dialogs, resizable)`:
 /// GLOW draws the whole frame itself (rounded, a halo around it); a resizable GLOW window is
@@ -56,7 +56,7 @@ public final class GateFrame {
     final String subtitle;
     final boolean resizable;
     final Style style;
-    boolean closable = true, taskbar;
+    boolean closable = true, taskbar = true;
     /// Whether the keyboard really types into this window (see Foreground), which is what the glow shows.
     boolean live, painted;
     long hwnd;
@@ -82,8 +82,13 @@ public final class GateFrame {
     /// Blocks every other window of the app until closed (for showAndWait).
     public GateFrame modal() { stage.initModality(Modality.APPLICATION_MODAL); return this; }
 
-    /// Gives the window a taskbar button; by default it has none (it is in Alt+Tab either way).
+    /// Gives the window a taskbar button. This is the default; kept so existing callers still compile.
     public GateFrame inTaskbar() { taskbar = true; return this; }
+
+    /// Removes the taskbar button (ITaskbarList::DeleteTab). On Windows 11 this also takes the window
+    /// out of Alt+Tab, so a prompt that goes behind something is lost: use only for windows nobody
+    /// needs to switch back to.
+    public GateFrame notInTaskbar() { taskbar = false; return this; }
 
     public GateFrame notOnTop() { stage.setAlwaysOnTop(false); return this; }
 
@@ -166,6 +171,7 @@ public final class GateFrame {
             };
         }
         var repaint = (Runnable) () -> {
+            if (hwnd == 0 && stage.isShowing()) hwnd = Foreground.handle(stage);
             var now = stage.isFocused() && Foreground.isFront(hwnd);
             elsewhere.setVisible(stage.isShowing() && !now);
             if (now == live && painted) return;
@@ -177,13 +183,17 @@ public final class GateFrame {
         // Windows says nothing to JavaFX when it refuses the foreground, so ask it a few times a second.
         var poll = new Timeline(new KeyFrame(Duration.millis(150), x -> repaint.run()));
         poll.setCycleCount(Animation.INDEFINITE);
-        stage.addEventHandler(WindowEvent.WINDOW_SHOWN, x -> { hwnd = Foreground.handle(stage.getTitle()); repaint.run(); poll.play(); });
+        stage.addEventHandler(WindowEvent.WINDOW_SHOWN, x -> { hwnd = Foreground.handle(stage); repaint.run(); poll.play(); });
         stage.addEventHandler(WindowEvent.WINDOW_HIDDEN, x -> poll.stop());
         repaint.run();
 
         stage.setScene(scene);
         stage.setTitle(brand.product().toUpperCase() + ": " + subtitle);
-        stage.getIcons().setAll(brand.icon());
+        stage.getIcons().setAll(brand.icons().window(TaskbarTheme.isDark()));
+        // the taskbar's light/dark theme can change while the window is open; the listener lives as long as the stage
+        javafx.beans.value.ChangeListener<Boolean> theme = (o, was, dark) -> stage.getIcons().setAll(brand.icons().window(dark));
+        stage.getProperties().put(TaskbarTheme.class, theme);
+        TaskbarTheme.darkProperty().addListener(new javafx.beans.value.WeakChangeListener<>(theme));
         stage.setOnCloseRequest(e -> { e.consume(); requestClose(); });
         stage.addEventHandler(WindowEvent.WINDOW_SHOWN, e -> {
             stage.toFront();

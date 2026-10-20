@@ -32,6 +32,7 @@
         <module>core</module>
         <module>vault</module>
         <module>sshagent</module>
+        <module>tray</module>
         <module>frame</module>
         <module>ui</module>
     </modules>
@@ -40,7 +41,6 @@
         <maven.compiler.release>25</maven.compiler.release>
         <jackson.version>2.21.2</jackson.version>
         <javafx.version>27</javafx.version>
-        <fxtrayicon.version>4.2.0</fxtrayicon.version>
     </properties>
     <profiles>
         <profile>

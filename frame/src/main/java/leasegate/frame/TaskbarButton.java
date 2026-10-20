@@ -6,11 +6,10 @@ import java.nio.charset.StandardCharsets;
 
 import static java.lang.foreign.ValueLayout.*;
 
-/// Takes a window's button off the Windows taskbar while leaving it in Alt+Tab. Owning the window
-/// by a hidden one removes the button too, but Windows then also leaves it out of Alt+Tab, and a
-/// prompt that cannot be Alt+Tabbed to is lost the moment it goes behind something. The shell's own
-/// ITaskbarList::DeleteTab removes the button only. Best effort, Windows only: if anything here
-/// fails, the window simply keeps its button.
+/// Takes a window's button off the Windows taskbar (ITaskbarList::DeleteTab). Opt-in only
+/// (GateFrame.notInTaskbar): on Windows 11 the window then also drops out of Alt+Tab (found
+/// 2026-10-20), and a prompt that cannot be Alt+Tabbed to is lost the moment it goes behind something.
+/// Best effort, Windows only: if anything here fails, the window simply keeps its button.
 final class TaskbarButton {
 
     static final boolean WINDOWS = System.getProperty("os.name", "").startsWith("Windows");

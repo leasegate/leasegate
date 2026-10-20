@@ -20,7 +20,7 @@ public final class SecretFieldTrial extends Application {
 
     @Override
     public void start(Stage ignored) {
-        var brand = new Brand("gitgate", "#2e7d32", GateIcon.image("#2e7d32"));
+        var brand = new Brand("gitgate", "#2e7d32", GateIcons.leasegate());
         var a = new SecretField();
         var b = new SecretField();
         a.setText("correct horse");

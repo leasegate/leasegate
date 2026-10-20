@@ -2,24 +2,26 @@ package leasegate.ui;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
-import javafx.animation.*;
 import javafx.application.Platform;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.SeparatorMenuItem;
 import javafx.stage.Stage;
 
-import com.dustinredmond.fxtrayicon.FXTrayIcon;
+import leasegate.tray.*;
 
 import leasegate.frame.*;
 import leasegate.core.LeaseEngine;
 import leasegate.core.access.PassphraseGate;
 import leasegate.core.access.Scope;
 
-/// The tray every gate shares: its state line, who has access, the gate's own items, blanket mode
-/// for testing (up to four hours), revoke everything, and quit. A gate adds its own items with
-/// `item`/`addItem` before `install`, and keeps them current with `onRefresh`.
+/// The tray every gate shares. A left click opens the gate's home window (GateHome); a right click
+/// opens its menu, drawn by JavaFX (leasegate-tray), not by the platform. A gate adds its own items with
+/// `item`/`addItem` before `install`, keeps them current with `onRefresh`, and says what it guards
+/// with `describe`. The items are plain MenuItems: the popup and the home window both read them.
 public final class TrayShell<S extends Scope<S>> {
 
     final Stage statusStage;
@@ -30,10 +32,12 @@ public final class TrayShell<S extends Scope<S>> {
     final Brand brand;
     final List<MenuItem> extraItems = new ArrayList<>();
     final List<Runnable> refreshers = new ArrayList<>();
-    String quitLabel;
+    final GateHome<S> home;
+    final TrayMenu popup;
+    String quitLabel, tagline = "", homepage;
     Runnable beforeQuit = () -> {};
-    FXTrayIcon icon;
-    MenuItem stateItem, blanketItem, blanketExtendItem;
+    FxTray icon;
+    MenuItem blanketItem, blanketExtendItem, revokeItem;
     String tooltip = "";
 
     public TrayShell(Stage statusStage, LeaseEngine<S> engine, PassphraseGate passphraseGate, Brand brand, Supplier<String> statusLine) {
@@ -44,6 +48,15 @@ public final class TrayShell<S extends Scope<S>> {
         this.statusLine = statusLine;
         this.accessList = new AccessListWindow<>(engine, passphraseGate, brand);
         this.quitLabel = "Quit " + product();
+        this.homepage = "https://github.com/leasegate/" + product();
+        this.home = new GateHome<>(this);
+        this.popup = new TrayMenu(brand.icon(), product(), brand.color(), statusLine, this::menu);
+        blanketItem = item(blanketLabel(), this::onBlanketModeClicked);
+        blanketExtendItem = item("Extend blanket mode…", this::onBlanketExtendClicked);
+        revokeItem = item("Revoke every attested approval now", () -> {
+            engine.revokeAllNow();
+            notify("Every attested approval revoked; keyed apps are listed in the " + product() + " window.");
+        });
     }
 
     String product() { return engine.rules.product(); }
@@ -54,36 +67,20 @@ public final class TrayShell<S extends Scope<S>> {
 
     public TrayShell<S> quit(String label, Runnable before) { quitLabel = label; beforeQuit = before; return this; }
 
+    /// One line on what this gate guards (under its name in its windows), and its home page (About).
+    public TrayShell<S> describe(String tagline, String homepage) { this.tagline = tagline; this.homepage = homepage; return this; }
+
     public AccessListWindow<S> accessList() { return accessList; }
 
+    public GateHome<S> home() { return home; }
+
     public void install() {
-        icon = new FXTrayIcon(statusStage, brand.icon());
-        icon.noDefaultAction();
-        icon.setOnAction(e -> accessList.show());
-        // FXTrayIcon refuses a label already in the menu, on the AWT thread where nobody sees the
-        // exception, so every item needs its real text before it is added; two empty ones drop the second.
-        stateItem = new MenuItem(statusLine.get());
-        stateItem.setDisable(true);
-        icon.addMenuItem(stateItem);
-        icon.addMenuItem(new SeparatorMenuItem());
-        icon.addMenuItem(item("Who has access…", accessList::show));
-        extraItems.forEach(icon::addMenuItem);
-        icon.addMenuItem(new SeparatorMenuItem());
-        blanketItem = item(blanketLabel(), this::onBlanketModeClicked);
-        icon.addMenuItem(blanketItem);
-        blanketExtendItem = item("Extend blanket mode…", this::onBlanketExtendClicked);
-        icon.addMenuItem(blanketExtendItem);
-        icon.addMenuItem(item("Revoke every attested approval now", () -> {
-            engine.revokeAllNow();
-            icon.showInfoMessage(product(), "Every attested approval revoked; keyed apps are listed under Who has access.");
-        }));
-        icon.addMenuItem(new SeparatorMenuItem());
-        icon.addMenuItem(item(quitLabel, this::quit));
-        icon.show();
-        var ticker = new Timeline(new KeyFrame(javafx.util.Duration.seconds(1), e -> refresh()));
-        ticker.setCycleCount(Animation.INDEFINITE);
-        ticker.play();
-        refresh();
+        icon = FxTray.install(brand.icons().tray(TaskbarTheme.isDark()), product(), popup, home::show);
+        TaskbarTheme.darkProperty().addListener((o, was, dark) -> icon.image(brand.icons().tray(dark)));
+        // Only the tooltip needs to follow the state while nothing is open. A daemon thread rather
+        // than an endless Timeline: a running animation keeps JavaFX's frame clock going (PRP 10).
+        var ticker = Executors.newSingleThreadScheduledExecutor(r -> Thread.ofPlatform().daemon().name(product() + "-tray").unstarted(r));
+        ticker.scheduleWithFixedDelay(() -> Platform.runLater(this::tick), 0, 1, TimeUnit.SECONDS);
     }
 
     public static MenuItem item(String text, Runnable action) {
@@ -93,29 +90,49 @@ public final class TrayShell<S extends Scope<S>> {
         return m;
     }
 
-    public void notify(String message) { Platform.runLater(() -> icon.showInfoMessage(product(), message)); }
+    public void notify(String message) { if (icon != null) icon.message(product(), message); }
 
-    /// Ticks every second but touches the menu only when something it shows has changed: every change
-    /// rebuilds the native popup, and rewriting it each second is what made it flicker.
-    /// The blanket countdown is shown to the minute for the same reason.
-    void refresh() {
+    /// Changes a menu item's text only when it differs.
+    public static void set(MenuItem m, String text) { if (!text.equals(m.getText())) m.setText(text); }
+
+    void tick() {
         var line = statusLine.get();
-        var blanketOn = passphraseGate.isBlanketModeActive();
-        set(stateItem, line);
-        if (!line.equals(tooltip)) { tooltip = line; icon.setTrayIconTooltip(product() + ": " + line); }
+        if (!line.equals(tooltip)) { tooltip = line; icon.tooltip(product() + ": " + line); }
+    }
+
+    /// Brings every item up to date; run whenever the popup or the home window shows them.
+    void refresh() {
         refreshers.forEach(Runnable::run);
         set(blanketItem, blanketLabel());
-        if (blanketExtendItem.isDisable() == blanketOn) blanketExtendItem.setDisable(!blanketOn);
+        blanketExtendItem.setDisable(!passphraseGate.isBlanketModeActive());
     }
+
+    List<MenuItem> menu() {
+        refresh();
+        var m = new ArrayList<MenuItem>();
+        m.add(item("Open the " + product() + " window", home::show));
+        m.add(item("Who has access…", accessList::show));
+        if (!extraItems.isEmpty()) m.add(new SeparatorMenuItem());
+        m.addAll(extraItems);
+        m.add(new SeparatorMenuItem());
+        m.add(blanketItem);
+        if (passphraseGate.isBlanketModeActive()) m.add(blanketExtendItem);
+        m.add(revokeItem);
+        m.add(new SeparatorMenuItem());
+        m.add(item("Check for updates…", home::checkForUpdates));
+        m.add(item("About " + product(), this::about));
+        m.add(new SeparatorMenuItem());
+        m.add(item(quitLabel, this::quit));
+        return m;
+    }
+
+    void about() { AboutWindow.show(brand, tagline, homepage); }
 
     String blanketLabel() {
         return passphraseGate.isBlanketModeActive()
             ? "Blanket mode ON, ends in " + hm(passphraseGate.blanketModeRemaining()) + " (click to end now)"
             : "Blanket mode for testing (up to " + DurationChips.label(PassphraseGate.BLANKET_MODE_MAX_MINUTES) + ")…";
     }
-
-    /// Changes a menu item's text only when it differs (see `refresh`).
-    public static void set(MenuItem m, String text) { if (!text.equals(m.getText())) m.setText(text); }
 
     static String hm(java.time.Duration d) {
         var m = Math.max(0, (d.toSeconds() + 59) / 60);
@@ -145,7 +162,7 @@ public final class TrayShell<S extends Scope<S>> {
             "Add " + DurationChips.label(minutes) + " to blanket mode. Type the passphrase.")) return;
         engine.extendBlanketGrants(passphraseGate.extendBlanketMode(minutes));
         refresh();
-        icon.showInfoMessage(product(), "Blanket mode now ends in " + hm(passphraseGate.blanketModeRemaining()));
+        notify("Blanket mode now ends in " + hm(passphraseGate.blanketModeRemaining()));
     }
 
     void quit() {
