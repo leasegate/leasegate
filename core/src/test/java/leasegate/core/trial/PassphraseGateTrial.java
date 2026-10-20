@@ -19,9 +19,10 @@ public class PassphraseGateTrial {
         check("no passphrase set yet", !gate.hasPassphrase());
         check("not unlocked before anything is set", !gate.isUnlocked());
 
-        check("rejects non-alphanumeric on setup", !gate.setInitialPassphrase("has a space"));
         check("rejects blank on setup", !gate.setInitialPassphrase(""));
-        check("accepts a valid alphanumeric passphrase", gate.setInitialPassphrase("Sunrise42"));
+        check("rejects whitespace-only on setup", !gate.setInitialPassphrase("   "));
+        check("any characters are valid now (symbols, spaces)", PassphraseGate.isValidPassphrase("P@ss w0rd!#"));
+        check("accepts an alphanumeric passphrase as before", gate.setInitialPassphrase("Sunrise42"));
         check("setInitialPassphrase unlocks in the same act", gate.isUnlocked());
         check("cannot set a second passphrase once one exists", !gate.setInitialPassphrase("Другое1"));
 
@@ -74,6 +75,16 @@ public class PassphraseGateTrial {
         var reread = new PassphraseGate(legacy);
         check("a fresh instance reads the upgraded file and still verifies", reread.verify("Oldpass7") && !reread.verify("wrong"));
         check("a new passphrase after recovery replaces it", reread.resetAfterRecovery("Newpass8") && new PassphraseGate(legacy).verify("Newpass8"));
+
+        var symbols = dir.resolve("symbols.json");
+        var sym = new PassphraseGate(symbols);
+        check("a passphrase with symbols can be set", sym.setInitialPassphrase("Tr0ub4dor&3 x!"));
+        check("...and opens again after a restart", new PassphraseGate(symbols).unlock("Tr0ub4dor&3 x!") && !new PassphraseGate(symbols).verify("Tr0ub4dor&3"));
+
+        var ext = PassphraseGate.external(p -> p.equals("from-elsewhere%1"));
+        check("an external gate has a passphrase from the start", ext.hasPassphrase() && !ext.isUnlocked());
+        check("an external gate cannot be given its own", !ext.setInitialPassphrase("x") && !ext.resetAfterRecovery("x"));
+        check("an external gate asks its check", !ext.unlock("wrong") && ext.verify("from-elsewhere%1") && ext.unlock("from-elsewhere%1") && ext.isUnlocked());
 
         try (var files = Files.list(dir)) { for (var f : files.toList()) Files.deleteIfExists(f); }
         Files.deleteIfExists(dir);

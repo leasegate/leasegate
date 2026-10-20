@@ -9,6 +9,7 @@ import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HexFormat;
+import java.util.function.Predicate;
 
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
@@ -18,7 +19,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 /// Password gating on top of everything else a gate already enforces (kernel attestation, scope
 /// enforcement, duration caps). Three tiers, each additive:
 ///
-/// - **Tier 0 (baseline unlock)**: an alphanumeric-only passphrase, set on first run, entered
+/// - **Tier 0 (baseline unlock)**: a passphrase (any characters, not blank), set on first run, entered
 ///   once to unlock the tray app -- nothing else starts until this succeeds.
 /// - **Tier 1 (per-connection re-confirm)**: a request the gate's rules call too broad
 ///   (`LeaseRules.needsPassphrase`) re-asks the passphrase before Approve is clickable.
@@ -37,6 +38,7 @@ public final class PassphraseGate {
     static final int ITERATIONS = 600_000;
 
     final Path storePath;
+    final Predicate<String> external;
     final ObjectMapper mapper = new ObjectMapper();
     String saltHex;
     String hashHex;
@@ -46,15 +48,25 @@ public final class PassphraseGate {
 
     public PassphraseGate(Path storePath) {
         this.storePath = storePath;
+        this.external = null;
         load();
     }
 
-    public boolean hasPassphrase() { return hashHex != null; }
+    PassphraseGate(Predicate<String> check) {
+        this.storePath = null;
+        this.external = check;
+    }
+
+    /// A gate whose passphrase belongs to something else (a password manager's master password):
+    /// no hash file, nothing to set up or reset; `check` answers every unlock and re-confirm.
+    public static PassphraseGate external(Predicate<String> check) { return new PassphraseGate(check); }
+
+    public boolean hasPassphrase() { return external != null || hashHex != null; }
 
     public boolean isUnlocked() { return unlocked; }
 
     public static boolean isValidPassphrase(String candidate) {
-        return candidate != null && !candidate.isEmpty() && candidate.chars().allMatch(Character::isLetterOrDigit);
+        return candidate != null && !candidate.isBlank();
     }
 
     /// First run only: sets the passphrase and unlocks in the same act. Refuses if one is already set.
@@ -67,7 +79,7 @@ public final class PassphraseGate {
 
     /// Only for a gate that has just proved its recovery key: replaces the passphrase and unlocks.
     public synchronized boolean resetAfterRecovery(String newPassphrase) {
-        if (!isValidPassphrase(newPassphrase)) return false;
+        if (external != null || !isValidPassphrase(newPassphrase)) return false;
         store(newPassphrase);
         unlocked = true;
         return true;
@@ -75,13 +87,14 @@ public final class PassphraseGate {
 
     public synchronized boolean unlock(String passphrase) {
         if (!verify(passphrase)) return false;
-        if (!"pbkdf2".equals(kind)) store(passphrase);
+        if (external == null && !"pbkdf2".equals(kind)) store(passphrase);
         unlocked = true;
         return true;
     }
 
     public synchronized boolean verify(String passphrase) {
         if (!hasPassphrase() || passphrase == null) return false;
+        if (external != null) return external.test(passphrase);
         var salt = HexFormat.of().parseHex(saltHex);
         var candidate = "pbkdf2".equals(kind) ? pbkdf2(salt, passphrase) : sha256(salt, passphrase);
         return MessageDigest.isEqual(candidate.getBytes(StandardCharsets.US_ASCII), hashHex.getBytes(StandardCharsets.US_ASCII));
