@@ -8,6 +8,7 @@
         <relativePath>../pom.xml</relativePath>
     </parent>
     <artifactId>leasegate-core</artifactId>
+    <name>leasegate core: approval engine, grants, process chain</name>
     <packaging>jar</packaging>
     <description>The server side of a leasegate gate: who connected, the process chain, anchors, time-boxed scoped grants, keyed apps, trust, the passphrase.</description>
     <dependencies>

@@ -8,6 +8,7 @@
         <relativePath>../pom.xml</relativePath>
     </parent>
     <artifactId>leasegate-ui</artifactId>
+    <name>leasegate ui: the approval windows and tray</name>
     <packaging>jar</packaging>
     <description>JavaFX approval window, access list, passphrase dialogs and tray shell for a leasegate gate.</description>
     <dependencies>

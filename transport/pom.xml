@@ -8,6 +8,7 @@
         <relativePath>../pom.xml</relativePath>
     </parent>
     <artifactId>leasegate-transport</artifactId>
+    <name>leasegate transport: the pipe protocol between gate and clients</name>
     <packaging>jar</packaging>
     <description>The client side of a leasegate gate: named pipe and unix socket links, framed and raw, and keyed-app identity.</description>
     <dependencies>

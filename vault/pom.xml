@@ -8,6 +8,7 @@
         <relativePath>../pom.xml</relativePath>
     </parent>
     <artifactId>leasegate-vault</artifactId>
+    <name>leasegate vault: secrets encrypted at rest with passphrase and recovery key</name>
     <packaging>jar</packaging>
     <description>Secrets at rest for a leasegate gate: AES-256-GCM, wrapped by a passphrase and by a recovery key.</description>
     <dependencies>
