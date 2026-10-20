@@ -53,7 +53,7 @@ public final class AgentServer {
     byte[] answer(byte[] msg, ConsumerServer.Accepted a, List<ProcessTree.RawLink> raw, HashMap<String, Boolean> allowed) {
         var r = new SshReader(msg);
         return switch (r.u8()) {
-            case REQUEST_IDENTITIES -> identities();
+            case REQUEST_IDENTITIES -> identities(policy.offer(keys.get(), a.peer(), raw, ProcInfo.commandLine(a.peer().pid()).orElse("")));
             case SIGN_REQUEST -> {
                 var blob = r.string();
                 var data = r.string();
@@ -67,8 +67,7 @@ public final class AgentServer {
         };
     }
 
-    byte[] identities() {
-        var list = keys.get();
+    byte[] identities(List<AgentKey> list) {
         var w = new SshWriter().u8(IDENTITIES_ANSWER).u32(list.size());
         for (var k : list) w.string(k.blob()).string(k.comment);
         return w.framed();

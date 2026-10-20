@@ -14,4 +14,9 @@ public interface SignPolicy {
     record Request(PeerIdentity peer, List<ProcessTree.RawLink> chain, AgentKey key, String sshCommandLine) {}
 
     boolean allow(Request request);
+
+    /// Which keys to list to this ssh process. ssh offers a server every key the agent lists, so a
+    /// gate holding keys of several identities for one server (two accounts on one forge) lists only
+    /// the one that belongs to what this ssh is about to do. Default: all of them.
+    default List<AgentKey> offer(List<AgentKey> all, PeerIdentity peer, List<ProcessTree.RawLink> chain, String sshCommandLine) { return all; }
 }
