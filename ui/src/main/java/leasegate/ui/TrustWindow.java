@@ -5,15 +5,14 @@ import java.util.Optional;
 import java.util.function.Consumer;
 
 import javafx.geometry.Insets;
-import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
-import javafx.stage.StageStyle;
 
+import leasegate.frame.*;
 import leasegate.core.ProcInfo;
 import leasegate.core.access.*;
 
@@ -29,10 +28,11 @@ final class TrustWindow<S extends Scope<S>> {
     final Brand brand;
     final Consumer<Optional<TrustApproval.Decision<S>>> onDecision;
     final DurationChipsView chips = new DurationChipsView(DurationChips.TRUST);
-    final Stage stage = new Stage(StageStyle.UTILITY);
+    final GateFrame frame;
+    final Stage stage;
     final VBox root = new VBox(10);
     final Label band = new Label();
-    final PasswordField passphrase = new PasswordField();
+    final SecretField passphrase = new SecretField();
     final Label error = PassphrasePrompt.errorLabel();
     boolean decided;
 
@@ -42,6 +42,8 @@ final class TrustWindow<S extends Scope<S>> {
         this.rules = rules;
         this.brand = brand;
         this.onDecision = onDecision;
+        this.frame = new GateFrame(brand, "trust request: a process and everything it starts").onClose(() -> decide(Optional.empty()));
+        this.stage = frame.stage;
     }
 
     void show() {
@@ -57,7 +59,7 @@ final class TrustWindow<S extends Scope<S>> {
         var approve = ApprovalParts.button("Enter  Approve", "#2e7d32", this::approve);
         var deny = ApprovalParts.button("Esc  Deny", "#b3261e", () -> decide(Optional.empty()));
         passphrase.setPromptText("passphrase");
-        root.getChildren().addAll(brand.band("trust request: a process and everything it starts"), band, name, what,
+        root.getChildren().addAll(band, name, what,
             ApprovalParts.box("command line of the process to be trusted", ProcInfo.commandLine(t.pid())),
             ApprovalParts.box("its working directory", ProcInfo.currentDirectory(t.pid())),
             asked, ApprovalParts.scope(r.requested(), rules), chips.node(),
@@ -67,13 +69,9 @@ final class TrustWindow<S extends Scope<S>> {
         root.setPrefWidth(660);
         paint();
 
-        var scene = new Scene(root);
+        var scene = frame.scene(root);
         scene.addEventFilter(KeyEvent.KEY_PRESSED, this::onKey);
-        stage.getIcons().add(brand.icon());
         stage.setTitle(brand.product().toUpperCase() + ": trust " + t.imageName() + " for hours");
-        stage.setScene(scene);
-        stage.setAlwaysOnTop(true);
-        stage.setOnCloseRequest(e -> decide(Optional.empty()));
         stage.show();
         stage.toFront();
         passphrase.requestFocus();

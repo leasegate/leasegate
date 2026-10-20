@@ -7,6 +7,7 @@ import java.util.concurrent.TimeoutException;
 
 import javafx.application.Platform;
 
+import leasegate.frame.*;
 import leasegate.core.access.*;
 
 /// Bridges a trust request to its window on the FX thread, the same way FxApproval does for ordinary

@@ -12,6 +12,7 @@ import javafx.stage.Stage;
 
 import com.dustinredmond.fxtrayicon.FXTrayIcon;
 
+import leasegate.frame.*;
 import leasegate.core.LeaseEngine;
 import leasegate.core.access.PassphraseGate;
 import leasegate.core.access.Scope;
@@ -123,9 +124,9 @@ public final class TrayShell<S extends Scope<S>> {
 
     void onBlanketModeClicked() {
         if (passphraseGate.isBlanketModeActive()) { passphraseGate.deactivateBlanketModeNow(); refresh(); return; }
-        var minutes = BlanketDurationPrompt.choose(product());
+        var minutes = BlanketDurationPrompt.choose(brand);
         if (minutes == 0) return;
-        var ok = PassphrasePrompt.confirmTwice(passphraseGate, product() + ": blanket mode",
+        var ok = PassphrasePrompt.confirmTwice(passphraseGate, brand, "blanket mode",
             "Any app, any request, with no approval window, for " + DurationChips.label(minutes)
                 + ". It then ends by itself. For testing only. Type the passphrase.");
         if (ok) passphraseGate.activateBlanketMode(minutes);
@@ -136,11 +137,11 @@ public final class TrayShell<S extends Scope<S>> {
     /// again. One passphrase entry: the two-entry friction was paid when it was switched on.
     void onBlanketExtendClicked() {
         if (!passphraseGate.isBlanketModeActive()) return;
-        var minutes = BlanketDurationPrompt.choose(product(), "Add time to blanket mode, which now ends in "
+        var minutes = BlanketDurationPrompt.choose(brand, "Add time to blanket mode, which now ends in "
             + hm(passphraseGate.blanketModeRemaining()) + ". It never runs more than "
             + DurationChips.label(PassphraseGate.BLANKET_MODE_MAX_MINUTES) + " from now.");
         if (minutes == 0) return;
-        if (!PassphrasePrompt.confirmOnce(passphraseGate, product() + ": extend blanket mode",
+        if (!PassphrasePrompt.confirmOnce(passphraseGate, brand, "extend blanket mode",
             "Add " + DurationChips.label(minutes) + " to blanket mode. Type the passphrase.")) return;
         engine.extendBlanketGrants(passphraseGate.extendBlanketMode(minutes));
         refresh();

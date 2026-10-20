@@ -5,15 +5,14 @@ import java.util.Optional;
 import java.util.function.Consumer;
 
 import javafx.geometry.Insets;
-import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
-import javafx.stage.StageStyle;
 
+import leasegate.frame.*;
 import leasegate.core.access.*;
 
 /// The one approval window, for both kinds of request. Attested: the human picks how far up the
@@ -31,9 +30,11 @@ final class ApprovalWindow<S extends Scope<S>> {
     final boolean keyed;
     final AncestryTableView table;
     final DurationChipsView chips;
-    final Stage stage = new Stage(StageStyle.UTILITY);
+    final GateFrame frame;
+    final Stage stage;
     boolean decided;
     Arming arming;
+    final Label blocked = ApprovalParts.line(" ", ApprovalParts.RED);
 
     ApprovalWindow(Approval.Request<S> r, PassphraseGate passphraseGate, LeaseRules<S> rules, Brand brand, Consumer<Optional<Approval.Decision<S>>> onDecision) {
         this.r = r;
@@ -44,6 +45,9 @@ final class ApprovalWindow<S extends Scope<S>> {
         this.keyed = r.kind() == Approval.Kind.KEYED;
         this.table = keyed ? null : new AncestryTableView(AncestryRow.build(r.chain(), r.tree(), r.requested(), rules));
         this.chips = new DurationChipsView(keyed ? DurationChips.KEYED : DurationChips.ATTESTED);
+        this.frame = new GateFrame(brand, "approval request: " + (keyed ? "a keyed app" : "a process") + " asks for access")
+            .onClose(() -> decide(Optional.empty()));
+        this.stage = frame.stage;
     }
 
     void show() {
@@ -53,11 +57,11 @@ final class ApprovalWindow<S extends Scope<S>> {
         var armingLine = ApprovalParts.line(" ", ApprovalParts.AMBER);
         arming = new Arming(List.of(approve, deny), armingLine);
 
-        var root = new VBox(10, brand.band("approval request: " + (keyed ? "a keyed app" : "a process") + " asks for access"),
-            ApprovalParts.header(r), ApprovalParts.scope(r.requested(), rules));
+        var root = new VBox(10, ApprovalParts.header(r), ApprovalParts.scope(r.requested(), rules));
         if (keyed) {
             root.getChildren().add(ApprovalParts.keyedNote(r));
             chips.setCap(rules.keyedMaxMinutes(r.requested()), r.requested().requestedMinutes(), "how narrowly it is scoped");
+            explain();
         } else {
             root.getChildren().add(ApprovalParts.small("Choose how far up the process tree this approval reaches."
                 + " Broader anchors allow shorter durations. The approval ends when the anchor exits.", "#333"));
@@ -71,17 +75,13 @@ final class ApprovalWindow<S extends Scope<S>> {
             table.selectHop(suggested >= 0 ? suggested : hops.isEmpty() ? -1 : hops.getLast());
             onAnchorChanged();
         }
-        root.getChildren().addAll(chips.node(), new HBox(8, approve, deny), armingLine, legend);
+        root.getChildren().addAll(chips.node(), blocked, new HBox(8, approve, deny), armingLine, legend);
         root.setPadding(new Insets(14));
         root.setPrefWidth(660);
 
-        var scene = new Scene(root);
+        var scene = frame.scene(root);
         scene.addEventFilter(KeyEvent.KEY_PRESSED, this::onKey);
         stage.setTitle(brand.product().toUpperCase() + ": request from " + r.app());
-        stage.getIcons().add(brand.icon());
-        stage.setScene(scene);
-        stage.setAlwaysOnTop(true);
-        stage.setOnCloseRequest(e -> decide(Optional.empty()));
         stage.show();
         stage.toFront();
     }
@@ -90,6 +90,7 @@ final class ApprovalWindow<S extends Scope<S>> {
         var row = table.selectedHop().map(table.rows::get);
         chips.setCap(row.map(x -> x.cap().minutes()).orElse(0), r.requested().requestedMinutes(),
             row.map(x -> x.cap().boundBy()).orElse(""));
+        explain();
     }
 
     void onKey(KeyEvent e) {
@@ -104,6 +105,17 @@ final class ApprovalWindow<S extends Scope<S>> {
         e.consume();
     }
 
+    /// Says in the window why F2 cannot approve as things stand; F2 that silently did nothing
+    /// once had a human pressing it again and again.
+    boolean explain() {
+        var noAnchor = !keyed && table.selectedHop().map(table.rows::get).filter(AncestryRow::selectable).isEmpty();
+        var why = noAnchor ? "Pick an anchor with ↑/↓ first." : chips.whyNone();
+        blocked.setText(why == null ? "" : why);
+        blocked.setManaged(why != null);
+        blocked.setVisible(why != null);
+        return why == null;
+    }
+
     void moveAnchor(boolean down) {
         var hops = table.selectableHopsAscending();
         if (hops.isEmpty()) return;
@@ -114,7 +126,7 @@ final class ApprovalWindow<S extends Scope<S>> {
     void approve() {
         if (!arming.armed) return;
         var minutes = chips.selectedMinutes();
-        if (minutes <= 0) return;
+        if (!explain()) return;
         AncestryNode anchor = null;
         var cap = rules.keyedMaxMinutes(r.requested());
         if (!keyed) {
@@ -123,8 +135,8 @@ final class ApprovalWindow<S extends Scope<S>> {
             anchor = row.node();
             cap = row.cap().minutes();
         }
-        if (rules.needsPassphrase(r.requested()) && !PassphrasePrompt.confirmOnce(passphraseGate,
-                rules.product() + ": confirm a wide approval", "This request reaches everything this gate guards."
+        if (rules.needsPassphrase(r.requested()) && !PassphrasePrompt.confirmOnce(passphraseGate, brand,
+                "confirm a wide approval", "This request reaches everything this gate guards."
                     + " Type the passphrase to approve it anyway.")) return;
         decide(Optional.of(new Approval.Decision<>(anchor, minutes, cap, r.requested())));
     }

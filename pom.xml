@@ -32,13 +32,14 @@
         <module>core</module>
         <module>vault</module>
         <module>sshagent</module>
+        <module>frame</module>
         <module>ui</module>
     </modules>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.release>25</maven.compiler.release>
         <jackson.version>2.21.2</jackson.version>
-        <javafx.version>25.0.4</javafx.version>
+        <javafx.version>27</javafx.version>
         <fxtrayicon.version>4.2.0</fxtrayicon.version>
     </properties>
     <profiles>

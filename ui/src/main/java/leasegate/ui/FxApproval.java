@@ -7,6 +7,7 @@ import java.util.concurrent.TimeoutException;
 
 import javafx.application.Platform;
 
+import leasegate.frame.*;
 import leasegate.core.access.*;
 import leasegate.core.win.PeerIdentity;
 

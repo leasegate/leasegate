@@ -1,4 +1,4 @@
-package leasegate.ui;
+package leasegate.frame;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -18,7 +18,7 @@ public final class FKeys {
 
     public FKeys bind(KeyCode key, String label, String color, Runnable action) {
         bound.put(key, action);
-        bar.getChildren().add(ApprovalParts.button(name(key) + "  " + label, color, action));
+        bar.getChildren().add(Parts.button(name(key) + "  " + label, color, action));
         return this;
     }
 

@@ -1,5 +1,6 @@
 package leasegate.ui;
 
+import leasegate.frame.*;
 import leasegate.core.access.*;
 
 /// Opens the approval and trust windows with nothing behind them -- every decision goes nowhere --

@@ -1,4 +1,4 @@
-package leasegate.ui;
+package leasegate.frame;
 
 import java.util.List;
 
@@ -13,13 +13,13 @@ import javafx.util.Duration;
 /// "a" in it once approved a request -- so for the first moments every key is ignored and the
 /// buttons are disabled, with a countdown saying so. After that, approving takes a function key,
 /// never a letter.
-final class Arming {
+public final class Arming {
 
     static final int SECONDS = 2;
 
-    boolean armed;
+    public boolean armed;
 
-    Arming(List<Button> buttons, Label line) {
+    public Arming(List<Button> buttons, Label line) {
         buttons.forEach(b -> b.setDisable(true));
         var left = new int[] { SECONDS };
         line.setText("keys are ignored for " + left[0] + "s, so nothing typed elsewhere answers this");

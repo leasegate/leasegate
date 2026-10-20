@@ -1,15 +1,12 @@
 package leasegate.ui;
 
 import javafx.geometry.Insets;
-import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
-import javafx.stage.Modality;
-import javafx.stage.Stage;
-import javafx.stage.StageStyle;
 
+import leasegate.frame.*;
 import leasegate.core.access.PassphraseGate;
 
 /// How long blanket mode should run, asked before the two passphrase prompts. The longest choice is
@@ -19,17 +16,16 @@ final class BlanketDurationPrompt {
     private BlanketDurationPrompt() {}
 
     /// The chosen minutes, or 0 on cancel.
-    static int choose(String product) {
-        return choose(product, "Blanket mode: any app, any request, with no approval window."
+    static int choose(Brand brand) {
+        return choose(brand, "Blanket mode: any app, any request, with no approval window."
             + " It ends by itself after the time chosen here.");
     }
 
-    static int choose(String product, String intro) {
+    static int choose(Brand brand, String intro) {
         var choices = PassphraseGate.BLANKET_MODE_CHOICES;
         var result = new int[] { 0 };
-        var stage = new Stage(StageStyle.UTILITY);
-        stage.initModality(Modality.APPLICATION_MODAL);
-        stage.setTitle(product + ": blanket mode");
+        var frame = new GateFrame(brand, "blanket mode").modal();
+        var stage = frame.stage;
 
         var row = new HBox(8);
         for (var i = 0; i < choices.length; i++) {
@@ -51,14 +47,11 @@ final class BlanketDurationPrompt {
         var box = new VBox(12, msg, row);
         box.setPadding(new Insets(16));
         box.setPrefWidth(420);
-        var scene = new Scene(box);
+        var scene = frame.scene(box);
         scene.setOnKeyPressed(e -> {
             var idx = e.getCode().isDigitKey() && !e.getText().isEmpty() ? e.getText().charAt(0) - '1' : -1;
             if (idx >= 0 && idx < choices.length) { result[0] = choices[idx]; stage.close(); }
         });
-        stage.setScene(scene);
-        stage.setAlwaysOnTop(true);
-        stage.setOnShown(e -> stage.toFront());
         stage.showAndWait();
         return result[0];
     }

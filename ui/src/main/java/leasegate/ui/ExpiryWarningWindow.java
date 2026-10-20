@@ -6,14 +6,12 @@ import java.util.List;
 
 import javafx.animation.*;
 import javafx.geometry.Insets;
-import javafx.scene.Scene;
 import javafx.scene.control.Label;
 import javafx.scene.input.KeyCode;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
-import javafx.stage.Stage;
-import javafx.stage.StageStyle;
 
+import leasegate.frame.*;
 import leasegate.core.LeaseEngine;
 import leasegate.core.access.PassphraseGate;
 import leasegate.core.access.Scope;
@@ -25,7 +23,8 @@ import leasegate.core.access.Scope;
 public final class ExpiryWarningWindow {
 
     public static <S extends Scope<S>> void show(LeaseEngine<S> engine, PassphraseGate gate, Brand brand, LeaseEngine.Expiring e) {
-        var stage = new Stage(StageStyle.UTILITY);
+        var frame = new GateFrame(brand, "an approval is ending");
+        var stage = frame.stage;
         var countdown = new Label();
         countdown.setStyle("-fx-font-size: 13; -fx-font-weight: bold;");
         var done = new boolean[] { false };
@@ -43,8 +42,8 @@ public final class ExpiryWarningWindow {
         Runnable extend = () -> {
             if (done[0]) return;
             var g = engine.activeGrants().stream().filter(x -> x.id().equals(e.grantId())).findFirst();
-            if (g.isEmpty()) GrantExtend.alreadyEnded(engine.rules.product());
-            var r = g.flatMap(x -> GrantExtend.run(engine, gate, x));
+            if (g.isEmpty()) GrantExtend.alreadyEnded(brand);
+            var r = g.flatMap(x -> GrantExtend.run(engine, gate, brand, x));
             if (r.isEmpty()) { stage.close(); return; }
             done[0] = true;
             countdown.setText(e.label() + ": extended, " + GrantExtend.until(r.get()));
@@ -57,19 +56,16 @@ public final class ExpiryWarningWindow {
         var buttons = new HBox(8, extendButton, lapseButton);
         var armingLine = ApprovalParts.line(" ", ApprovalParts.AMBER);
         var arming = new Arming(List.of(extendButton, lapseButton), armingLine);
-        var root = new VBox(10, brand.band("an approval is ending"), countdown, ApprovalParts.small("Extending keeps the same anchor and scope, and adds time up to the cap this approval first earned.", "#555"), buttons, armingLine);
+        var root = new VBox(10, countdown, ApprovalParts.small("Extending keeps the same anchor and scope, and adds time up to the cap this approval first earned.", "#555"), buttons, armingLine);
         root.setPadding(new Insets(14));
         root.setPrefWidth(420);
-        var scene = new Scene(root);
+        var scene = frame.scene(root);
         scene.setOnKeyPressed(k -> {
             if (!arming.armed) return;
             if (k.getCode() == KeyCode.F2) extend.run();
             else if (k.getCode() == KeyCode.ESCAPE) stage.close();
         });
-        stage.getIcons().add(brand.icon());
         stage.setTitle(brand.product().toUpperCase() + ": approval ending");
-        stage.setScene(scene);
-        stage.setAlwaysOnTop(true);
         stage.show();
     }
 

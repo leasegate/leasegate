@@ -51,6 +51,14 @@ final class DurationChipsView {
 
     int selectedMinutes() { return selected; }
 
+    /// Why nothing can be approved with the duration as it stands, or null when something can.
+    String whyNone() {
+        if (selected > 0) return null;
+        if (cap <= 0) return "No duration is available here" + (capReason.isEmpty() ? "" : " (" + capReason + ")") + ", so this cannot be approved.";
+        return "The cap is " + DurationChips.label(cap) + (capReason.isEmpty() ? "" : ", set by " + capReason) + ", shorter than the shortest choice ("
+            + chips[0].label() + "), so this cannot be approved.";
+    }
+
     List<Integer> enabledAscending() {
         var list = new ArrayList<Integer>();
         for (var chip : chips) if (chip.minutes() <= cap) list.add(chip.minutes());

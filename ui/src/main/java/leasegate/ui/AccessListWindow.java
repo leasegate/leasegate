@@ -9,12 +9,12 @@ import javafx.animation.*;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
-import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
 
+import leasegate.frame.*;
 import leasegate.core.LeaseEngine;
 import leasegate.core.access.*;
 
@@ -26,7 +26,7 @@ public final class AccessListWindow<S extends Scope<S>> {
     final LeaseEngine<S> engine;
     final PassphraseGate passphraseGate;
     final Brand brand;
-    final Stage stage = new Stage();
+    Stage stage;
     final VBox rows = new VBox(6);
     Timeline ticker;
 
@@ -39,15 +39,18 @@ public final class AccessListWindow<S extends Scope<S>> {
     String product() { return engine.rules.product(); }
 
     public void show() {
-        if (stage.isShowing()) { stage.toFront(); return; }
+        if (stage != null && stage.isShowing()) { stage.toFront(); return; }
+        var frame = GateFrame.resizable(brand, "who has access right now").notOnTop();
+        stage = frame.stage;
         var revokeAll = new Hyperlink("revoke every attested approval now");
         revokeAll.setOnAction(e -> { engine.revokeAllNow(); refresh(); });
-        var header = new HBox(new Label(product() + ": who has access"), spacer(), revokeAll);
+        var header = new HBox(spacer(), revokeAll);
         header.setAlignment(Pos.CENTER_LEFT);
         var scroll = new ScrollPane(rows);
         scroll.setFitToWidth(true);
         scroll.setPrefHeight(320);
-        var root = new VBox(10, brand.band("who has access right now"), header, scroll, ApprovalParts.small("Esc closes · keyed approvals survive a restart, attested ones do not", "#777"));
+        VBox.setVgrow(scroll, Priority.ALWAYS);
+        var root = new VBox(10, header, scroll, ApprovalParts.small("Esc closes · keyed approvals survive a restart, attested ones do not", "#777"));
         root.setPadding(new Insets(12));
         root.setPrefWidth(720);
         ticker = new Timeline(new KeyFrame(javafx.util.Duration.seconds(1), e -> refresh()));
@@ -55,11 +58,9 @@ public final class AccessListWindow<S extends Scope<S>> {
         ticker.play();
         stage.setOnHidden(e -> ticker.stop());
         refresh();
-        var scene = new Scene(root);
+        var scene = frame.scene(root);
         scene.setOnKeyPressed(e -> { if (e.getCode() == KeyCode.ESCAPE) stage.hide(); });
-        stage.getIcons().add(brand.icon());
         stage.setTitle(product().toUpperCase() + ": access");
-        stage.setScene(scene);
         stage.show();
     }
 
@@ -75,7 +76,7 @@ public final class AccessListWindow<S extends Scope<S>> {
         var revoke = new Hyperlink("revoke");
         revoke.setOnAction(e -> { engine.revokeGrant(g.id()); refresh(); });
         var extend = new Hyperlink("extend");
-        extend.setOnAction(e -> { GrantExtend.run(engine, passphraseGate, g); refresh(); });
+        extend.setOnAction(e -> { GrantExtend.run(engine, passphraseGate, brand, g); refresh(); });
         return row(g.anyClient() ? "trusted" : "attested", g.anyClient() ? "any program" : imageName(g.clientImagePath()), (g.anyClient() ? "under " : "anchored at ") + imageName(g.anchorImagePath()) + " (" + g.anchorPid() + ")",
             g.scope(), g.expiresAt(), engine.liveConnections(g.id()), false, extend, revoke);
     }

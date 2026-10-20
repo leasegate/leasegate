@@ -7,6 +7,7 @@ import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 
+import leasegate.frame.Parts;
 import leasegate.core.ProcInfo;
 import leasegate.core.access.*;
 
@@ -15,7 +16,7 @@ import leasegate.core.access.*;
 /// Public, because a gate builds its own small windows from the same parts.
 public final class ApprovalParts {
 
-    public static final String RED = "#b3261e", GREEN = "#2e7d32", GREY = "#666", AMBER = "#9a6700";
+    public static final String RED = Parts.RED, GREEN = Parts.GREEN, GREY = Parts.GREY, AMBER = Parts.AMBER;
 
     static <S extends Scope<S>> Node header(Approval.Request<S> r) {
         var name = new Label(r.chain().isEmpty() ? r.app() : r.chain().getFirst().imageName());
@@ -64,27 +65,11 @@ public final class ApprovalParts {
         return l;
     }
 
-    public static Label line(String text, String color) {
-        var l = new Label(text);
-        l.setWrapText(true);
-        l.setStyle("-fx-font-size: 11; -fx-font-weight: bold; -fx-text-fill: " + color + ";");
-        return l;
-    }
+    public static Label line(String text, String color) { return Parts.line(text, color); }
 
-    public static Label small(String text, String color) {
-        var l = new Label(text);
-        l.setWrapText(true);
-        l.setStyle("-fx-font-size: 10; -fx-text-fill: " + color + ";");
-        return l;
-    }
+    public static Label small(String text, String color) { return Parts.small(text, color); }
 
-    public static Button button(String text, String color, Runnable action) {
-        var b = new Button(text);
-        b.setMnemonicParsing(false);
-        b.setStyle("-fx-background-color: " + color + "; -fx-text-fill: white; -fx-font-weight: bold;");
-        b.setOnAction(e -> action.run());
-        return b;
-    }
+    public static Button button(String text, String color, Runnable action) { return Parts.button(text, color, action); }
 
     private ApprovalParts() {}
 }

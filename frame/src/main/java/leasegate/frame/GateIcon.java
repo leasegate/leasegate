@@ -1,4 +1,11 @@
-package leasegate.ui;
+package leasegate.frame;
+
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+
+import javax.imageio.ImageIO;
 
 import javafx.scene.Group;
 import javafx.scene.Scene;
@@ -40,7 +47,19 @@ public final class GateIcon {
 
         var params = new SnapshotParameters();
         params.setFill(Color.TRANSPARENT);
-        return canvas.snapshot(params, null);
+        return viaPng(canvas.snapshot(params, null));
+    }
+
+    /// Windows silently ignores a WritableImage as a window icon (the title bar and taskbar show
+    /// the generic glyph), so the drawing is passed through an in-memory PNG and loaded back.
+    static Image viaPng(Image drawn) {
+        int w = (int) drawn.getWidth(), h = (int) drawn.getHeight();
+        var pixels = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        var reader = drawn.getPixelReader();
+        for (int y = 0; y < h; y++) for (int x = 0; x < w; x++) pixels.setRGB(x, y, reader.getArgb(x, y));
+        var bytes = new ByteArrayOutputStream();
+        try { ImageIO.write(pixels, "png", bytes); } catch (IOException e) { return drawn; }
+        return new Image(new ByteArrayInputStream(bytes.toByteArray()));
     }
 
     private GateIcon() {}
