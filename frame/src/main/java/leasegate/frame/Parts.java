@@ -23,9 +23,12 @@ public final class Parts {
         return l;
     }
 
+    /// A button the keyboard cannot reach: a focused button fires on Space, and a stray Space must not
+    /// answer a window. It wears its key in its label and is clicked with the mouse.
     public static Button button(String text, String color, Runnable action) {
         var b = new Button(text);
         b.setMnemonicParsing(false);
+        b.setFocusTraversable(false);
         b.setStyle("-fx-background-color: " + color + "; -fx-text-fill: white; -fx-font-weight: bold;");
         b.setOnAction(e -> action.run());
         return b;

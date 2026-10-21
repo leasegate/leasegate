@@ -126,7 +126,7 @@ public final class TrayMenu {
                 case ESCAPE -> close();
                 case DOWN -> move(1);
                 case UP -> move(-1);
-                case ENTER, SPACE -> { if (selected >= 0) run(rows.get(selected)); }
+                case F2 -> { if (selected >= 0) run(rows.get(selected)); }
                 default -> {}
             }
         });
@@ -146,6 +146,15 @@ public final class TrayMenu {
             var m = list.get(i);
             card.getChildren().add(m instanceof SeparatorMenuItem ? separator() : row(m, i));
         }
+        card.getChildren().add(legend());
+    }
+
+    /// Enter and Space run nothing: the menu opens on a click, but a key typed meant for another window must not fire a row.
+    Label legend() {
+        var l = new Label("↑/↓ choose · F2 run · Esc close");
+        l.setStyle("-fx-font-size: 10; -fx-text-fill: #888;");
+        l.setPadding(new Insets(4, 16, 2, 16));
+        return l;
     }
 
     /// Bottom right corner at the cursor (the taskbar is usually below), kept inside the screen.

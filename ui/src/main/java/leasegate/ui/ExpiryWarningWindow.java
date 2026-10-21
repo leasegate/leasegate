@@ -60,6 +60,7 @@ public final class ExpiryWarningWindow {
         root.setPadding(new Insets(14));
         root.setPrefWidth(420);
         var scene = frame.scene(root);
+        arming.guard(scene);
         scene.setOnKeyPressed(k -> {
             if (!arming.armed) return;
             if (k.getCode() == KeyCode.F2) extend.run();

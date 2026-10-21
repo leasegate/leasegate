@@ -80,6 +80,7 @@ final class ApprovalWindow<S extends Scope<S>> {
         root.setPrefWidth(660);
 
         var scene = frame.scene(root);
+        arming.guard(scene);
         scene.addEventFilter(KeyEvent.KEY_PRESSED, this::onKey);
         stage.setTitle(brand.product().toUpperCase() + ": request from " + r.app());
         stage.show();

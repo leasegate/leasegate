@@ -1,17 +1,22 @@
 package leasegate.ui;
 
+import java.util.List;
+
 import javafx.geometry.Insets;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
-import javafx.scene.layout.HBox;
+import javafx.scene.input.KeyCode;
 import javafx.scene.layout.VBox;
 
 import leasegate.frame.*;
 import leasegate.core.access.PassphraseGate;
 
-/// How long blanket mode should run, asked before the two passphrase prompts. The longest choice is
-/// the default (Enter), Esc cancels, and the digits 1-4 pick a choice directly: nothing here is typed.
+/// How long blanket mode should run, asked before the two passphrase prompts. F2 to F5 pick one of the
+/// choices, Esc cancels. No digit, letter, Space or Enter picks anything, and nothing is picked until the
+/// window has settled (see Arming): this window opens on top of whatever is being typed.
 final class BlanketDurationPrompt {
+
+    static final KeyCode[] KEYS = { KeyCode.F2, KeyCode.F3, KeyCode.F4, KeyCode.F5 };
 
     private BlanketDurationPrompt() {}
 
@@ -27,31 +32,23 @@ final class BlanketDurationPrompt {
         var frame = new GateFrame(brand, "blanket mode").modal();
         var stage = frame.stage;
 
-        var row = new HBox(8);
+        var keys = new FKeys();
         for (var i = 0; i < choices.length; i++) {
             var minutes = choices[i];
-            var b = new Button((i + 1) + "  " + DurationChips.label(minutes));
-            b.setMnemonicParsing(false);
-            b.setOnAction(e -> { result[0] = minutes; stage.close(); });
-            if (minutes == PassphraseGate.BLANKET_MODE_MAX_MINUTES) b.setDefaultButton(true);
-            row.getChildren().add(b);
+            keys.bind(KEYS[i], DurationChips.label(minutes), brand.color(), () -> { result[0] = minutes; stage.close(); });
         }
-        var cancel = new Button("Cancel");
-        cancel.setCancelButton(true);
-        cancel.setOnAction(e -> stage.close());
-        row.getChildren().add(cancel);
+        keys.bind(KeyCode.ESCAPE, "Cancel", "#777", stage::close);
 
-        var msg = new Label(intro + " Enter takes "
-            + DurationChips.label(PassphraseGate.BLANKET_MODE_MAX_MINUTES) + ", 1-4 pick one, Esc cancels.");
+        var msg = new Label(intro + " " + KEYS[0].getName() + " to " + KEYS[choices.length - 1].getName() + " pick a duration, Esc cancels.");
         msg.setWrapText(true);
-        var box = new VBox(12, msg, row);
+        var line = Parts.line(" ", Parts.AMBER);
+        var arming = new Arming(keys.bar.getChildren().stream().map(Button.class::cast).toList(), line);
+        var box = new VBox(12, msg, keys.bar, line);
         box.setPadding(new Insets(16));
-        box.setPrefWidth(420);
+        box.setPrefWidth(520);
         var scene = frame.scene(box);
-        scene.setOnKeyPressed(e -> {
-            var idx = e.getCode().isDigitKey() && !e.getText().isEmpty() ? e.getText().charAt(0) - '1' : -1;
-            if (idx >= 0 && idx < choices.length) { result[0] = choices[idx]; stage.close(); }
-        });
+        arming.guard(scene);
+        keys.install(scene);
         stage.showAndWait();
         return result[0];
     }

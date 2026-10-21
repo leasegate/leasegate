@@ -11,12 +11,17 @@ import javafx.scene.layout.HBox;
 /// The keys of a window that has text fields: letters belong to typing, so actions are function
 /// keys, Enter commits and Esc cancels. Each binding is declared once and becomes both the key and
 /// the button that wears it, so the row of buttons is the legend and every legend item is clickable.
+/// A key that can be typed (a letter, a digit, Space) cannot be bound: it would answer a window the
+/// human never meant to touch. Enter may be bound only where the window asks for a typed secret and
+/// Enter submits it; the secret, not the key, is what guards the action.
 public final class FKeys {
 
     final Map<KeyCode, Runnable> bound = new LinkedHashMap<>();
     public final HBox bar = new HBox(8);
 
     public FKeys bind(KeyCode key, String label, String color, Runnable action) {
+        if (!key.isFunctionKey() && key != KeyCode.ESCAPE && key != KeyCode.ENTER)
+            throw new IllegalArgumentException(key + " can be typed, so it cannot be a shortcut: use a function key");
         bound.put(key, action);
         bar.getChildren().add(Parts.button(name(key) + "  " + label, color, action));
         return this;
@@ -24,6 +29,7 @@ public final class FKeys {
 
     public void install(Scene scene) {
         scene.addEventFilter(KeyEvent.KEY_PRESSED, e -> {
+            if (Arming.blocked(scene)) return;
             var a = bound.get(e.getCode());
             if (a != null) { a.run(); e.consume(); }
         });

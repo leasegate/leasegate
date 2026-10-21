@@ -10,6 +10,7 @@ import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
@@ -261,33 +262,36 @@ public final class GateFrame {
         return c;
     }
 
-    /// A short notice with one OK (Enter or Esc), blocking until it is dismissed.
+    /// A short notice, blocking until it is dismissed with Esc or a click. Enter does not: a stray Enter
+    /// would dismiss it unread.
     public static void tell(Brand brand, String subtitle, String text) {
         var f = new GateFrame(brand, subtitle).modal();
-        var ok = Parts.button("OK", "#555", f.stage::close);
-        ok.setDefaultButton(true);
-        ok.setCancelButton(true);
-        f.scene(messageBody(text, ok));
+        var keys = new FKeys().bind(KeyCode.ESCAPE, "OK", "#555", f.stage::close);
+        keys.install(f.scene(messageBody(text, keys.bar)));
         f.stage.showAndWait();
     }
 
-    /// A yes/no question, blocking until answered. Enter is `yes`, Esc or close is no.
+    /// A yes/no question, blocking until answered. F2 is `yes` once the window has settled, Esc or close
+    /// is no; no letter, Space or Enter answers it (see Arming).
     public static boolean ask(Brand brand, String subtitle, String text, String yes, String no) {
         var f = new GateFrame(brand, subtitle).modal();
         var result = new boolean[] { false };
-        var y = Parts.button("Enter  " + yes, Parts.GREEN, () -> { result[0] = true; f.stage.close(); });
-        y.setDefaultButton(true);
-        var n = Parts.button("Esc  " + no, "#555", f.stage::close);
-        n.setCancelButton(true);
-        f.scene(messageBody(text, y, n));
+        var keys = new FKeys().bind(KeyCode.F2, yes, Parts.GREEN, () -> { result[0] = true; f.stage.close(); })
+            .bind(KeyCode.ESCAPE, no, "#555", f.stage::close);
+        var line = Parts.line(" ", Parts.AMBER);
+        var arming = new Arming(keys.bar.getChildren().stream().map(Button.class::cast).toList(), line);
+        var scene = f.scene(messageBody(text, line, keys.bar));
+        arming.guard(scene);
+        keys.install(scene);
         f.stage.showAndWait();
         return result[0];
     }
 
-    static VBox messageBody(String text, Button... buttons) {
+    static VBox messageBody(String text, Node... rest) {
         var msg = new Label(text);
         msg.setWrapText(true);
-        var box = new VBox(14, msg, new HBox(8, buttons));
+        var box = new VBox(14, msg);
+        box.getChildren().addAll(rest);
         box.setPadding(new Insets(16));
         box.setPrefWidth(420);
         return box;

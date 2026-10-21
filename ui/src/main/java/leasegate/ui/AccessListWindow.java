@@ -36,6 +36,7 @@ public final class AccessListWindow<S extends Scope<S>> {
         stage = frame.stage;
         var revokeAll = new Hyperlink("revoke every attested approval now");
         revokeAll.setMnemonicParsing(false);
+        revokeAll.setFocusTraversable(false);
         revokeAll.setOnAction(e -> { engine.revokeAllNow(); rows.refresh(); });
         var header = new HBox(AccessRows.spacer(), revokeAll);
         header.setAlignment(Pos.CENTER_LEFT);

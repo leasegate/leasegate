@@ -8,7 +8,7 @@ import javafx.scene.layout.*;
 import jarrunner.jr.apputils.JrApp;
 import leasegate.frame.*;
 
-/// Which gate this is, which build, what it runs on, and where its home page is. Enter or Esc closes.
+/// Which gate this is, which build, what it runs on, and where its home page is. Esc closes: Enter does not, so a stray Enter cannot dismiss it unread.
 public final class AboutWindow {
 
     public static void show(Brand brand, String tagline, String homepage) {
@@ -29,9 +29,7 @@ public final class AboutWindow {
         link.setOnAction(e -> open(homepage));
         var note = Parts.small("One of the leasegate gates: it holds credentials and lets a program use them for a limited "
             + "time, and only after a person has approved that program in its window.", "#555");
-        var ok = Parts.button("Enter  Close", "#555", f.stage::close);
-        ok.setDefaultButton(true);
-        ok.setCancelButton(true);
+        var ok = Parts.button("Esc  Close", "#555", f.stage::close);
         var body = new VBox(14, brand.logo(96, tagline), grid, note, link, ok);
         body.setPadding(new Insets(18));
         body.setPrefWidth(520);
