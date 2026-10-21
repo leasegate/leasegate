@@ -25,10 +25,8 @@ public final class PassphrasePrompt {
         var result = new boolean[] { false };
         var frame = new GateFrame(brand, subtitle).modal();
         var stage = frame.stage;
-        var confirm = ApprovalParts.button("Enter  Confirm", ApprovalParts.GREEN, () -> {
-            if (gate.verify(field.getText())) { result[0] = true; stage.close(); }
-            else { error.setText("wrong passphrase"); field.clear(); }
-        });
+        var confirm = ApprovalParts.button("Enter  Confirm", ApprovalParts.GREEN, () -> {});
+        confirm.setOnAction(e -> check(gate, field.getText(), confirm, error, () -> { result[0] = true; stage.close(); }, field::clear));
         confirm.setDefaultButton(true);
         var cancel = ApprovalParts.button("Esc  Cancel", "#555", stage::close);
         cancel.setCancelButton(true);
@@ -43,12 +41,50 @@ public final class PassphrasePrompt {
         return result[0];
     }
 
-    /// Two SEPARATE passphrase prompts, both must verify -- Tier 2's deliberate extra friction
-    /// ("asks the passphrase TWICE") for the one mode that trusts any app, any profile, all
-    /// websites. Short-circuits on the first cancel/wrong entry rather than showing the second.
+    /// The passphrase typed TWICE, in one window -- Tier 2's deliberate extra friction for the one mode
+    /// that trusts everything. Both entries must match and the passphrase is checked once: two windows,
+    /// each running the slow check on its own, made the human wait between them for no gain.
     public static boolean confirmTwice(PassphraseGate gate, Brand brand, String subtitle, String message) {
-        if (!confirmOnce(gate, brand, subtitle, message + "\n\n(1 of 2)")) return false;
-        return confirmOnce(gate, brand, subtitle, message + "\n\n(2 of 2 -- confirming again, deliberately)");
+        var first = new SecretField();
+        var second = new SecretField();
+        var error = errorLabel();
+        var result = new boolean[] { false };
+        var frame = new GateFrame(brand, subtitle).modal();
+        var stage = frame.stage;
+        var confirm = ApprovalParts.button("Enter  Confirm", ApprovalParts.GREEN, () -> {});
+        confirm.setOnAction(e -> {
+            if (!first.getText().equals(second.getText())) { error.setText("the two entries differ"); second.clear(); return; }
+            check(gate, first.getText(), confirm, error, () -> { result[0] = true; stage.close(); }, () -> { first.clear(); second.clear(); });
+        });
+        confirm.setDefaultButton(true);
+        var cancel = ApprovalParts.button("Esc  Cancel", "#555", stage::close);
+        cancel.setCancelButton(true);
+
+        var msg = new Label(message);
+        msg.setWrapText(true);
+        var box = new VBox(10, msg, new Label("Passphrase"), first, new Label("Again, deliberately"), second, error, new HBox(8, confirm, cancel));
+        box.setPadding(new Insets(16));
+        box.setPrefWidth(400);
+        frame.scene(box);
+        stage.showAndWait();
+        return result[0];
+    }
+
+    /// The check is slow by design (hundreds of thousands of key-derivation rounds), so it runs off the
+    /// FX thread and the window says so instead of freezing.
+    static void check(PassphraseGate gate, String passphrase, javafx.scene.control.Button confirm, Label error, Runnable ok, Runnable wrong) {
+        confirm.setDisable(true);
+        error.setStyle("-fx-text-fill: #555; -fx-font-size: 11;");
+        error.setText("checking…");
+        Thread.ofVirtual().start(() -> {
+            var right = gate.verify(passphrase);
+            javafx.application.Platform.runLater(() -> {
+                confirm.setDisable(false);
+                error.setStyle("-fx-text-fill: #b3261e; -fx-font-size: 11;");
+                if (right) { error.setText(" "); ok.run(); }
+                else { error.setText("wrong passphrase"); wrong.run(); }
+            });
+        });
     }
 
     static Label errorLabel() {

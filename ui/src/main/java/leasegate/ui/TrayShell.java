@@ -95,25 +95,29 @@ public final class TrayShell<S extends Scope<S>> {
 
     java.util.concurrent.ScheduledExecutorService ticker;
     final java.util.Map<String, java.awt.Image> pictures = new java.util.HashMap<>();
-    String shownPicture = "";
-    int ticks;
+    TrayGlow.State shownState;
+    boolean shownDark;
+    java.util.concurrent.ScheduledFuture<?> laser;
+    int frame;
 
-    /// The tray icon for the taskbar theme, lit by the gate's state (TrayGlow): as drawn while locked,
-    /// glowing while open, glowing harder in blanket mode with a short pulse every eight seconds.
+    /// The tray icon in the gate's state (TrayGlow): grey while locked, lit while unlocked, and in
+    /// blanket mode lasers running round its edge, drawn on the tray's own daemon thread.
     void showState() {
         var dark = TaskbarTheme.isDark();
-        var blanket = passphraseGate.isBlanketModeActive();
-        var strength = blanket ? TrayGlow.BLANKET : passphraseGate.isUnlocked() ? TrayGlow.OPEN : 0;
-        var key = dark + ":" + strength;
-        if (!key.equals(shownPicture)) { shownPicture = key; icon.image(picture(dark, strength)); }
-        if (blanket && ++ticks % 8 == 0) {
-            icon.image(picture(dark, TrayGlow.PULSE));
-            ticker.schedule(() -> icon.image(picture(dark, TrayGlow.BLANKET)), 700, TimeUnit.MILLISECONDS);
-        }
+        var state = passphraseGate.isBlanketModeActive() ? TrayGlow.State.OPEN
+            : passphraseGate.isUnlocked() ? TrayGlow.State.ACTIVE : TrayGlow.State.LOCKED;
+        if (state == shownState && dark == shownDark) return;
+        shownState = state;
+        shownDark = dark;
+        if (laser != null) { laser.cancel(false); laser = null; }
+        if (state == TrayGlow.State.OPEN)
+            laser = ticker.scheduleAtFixedRate(() -> { frame = (frame + 1) % TrayGlow.FRAMES; icon.image(picture(dark, state, frame)); },
+                0, TrayGlow.FRAME_MS, TimeUnit.MILLISECONDS);
+        else icon.image(picture(dark, state, 0));
     }
 
-    synchronized java.awt.Image picture(boolean dark, double strength) {
-        return pictures.computeIfAbsent(dark + ":" + strength, k -> TrayGlow.lit(brand.icons().tray(dark), brand.color(), strength));
+    synchronized java.awt.Image picture(boolean dark, TrayGlow.State state, int frame) {
+        return pictures.computeIfAbsent(dark + ":" + state + ":" + frame, k -> TrayGlow.picture(brand.icons().tray(dark), brand.color(), state, dark, frame));
     }
 
     public static MenuItem item(String text, Runnable action) {

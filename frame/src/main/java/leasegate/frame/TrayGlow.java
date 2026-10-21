@@ -1,58 +1,121 @@
 package leasegate.frame;
 
+import java.awt.*;
+import java.awt.geom.*;
 import java.awt.image.BaseMultiResolutionImage;
 import java.awt.image.BufferedImage;
 import java.awt.image.MultiResolutionImage;
 import java.util.ArrayList;
 
-/// The tray icon lit up while the gate is open, in the light of the gate's colour (see Glow): a soft
-/// halo in the empty pixels around the shape and a bright rim just inside its edge, the same idea as
-/// the halo and inner glow on a gate's windows. A 16 px icon has almost no room outside its shape, so
-/// the inner rim is what carries the state on the icons that fill their square.
+/// The tray icon in the gate's three states, told apart at a glance at 16 px:
+///
+/// - LOCKED: the icon greyed out. Nothing is reachable through the gate.
+/// - ACTIVE: unlocked, granting per request: full colour with a backlight behind the shape, white on a
+///   dark taskbar and the light of the gate's colour on a light one.
+/// - OPEN: blanket mode, every request passes: ACTIVE plus a laser running round the edge, `FRAMES`
+///   pictures shown `FRAME_MS` apart.
+///
+/// The cue that carries the state is the same on every icon (grey or colour, still or moving), so it
+/// holds for icons that fill their whole square and leave no room for a halo.
 public final class TrayGlow {
 
-    /// Locked shows the icon as drawn; open glows; blanket mode glows harder (and pulses, see TrayShell).
-    public static final double OPEN = 0.7, BLANKET = 1.0, PULSE = 1.25;
+    public enum State { LOCKED, ACTIVE, OPEN }
 
-    /// Every resolution variant of `icon`, lit at `strength` (0 = as drawn).
-    public static java.awt.Image lit(java.awt.Image icon, String brandColor, double strength) {
-        if (strength <= 0 || !(icon instanceof MultiResolutionImage mri)) return icon;
-        var c = Glow.of(brandColor).core();
-        int rgb = ((int) Math.round(c.getRed() * 255) << 16) | ((int) Math.round(c.getGreen() * 255) << 8) | (int) Math.round(c.getBlue() * 255);
+    public static final int FRAMES = 12, FRAME_MS = 110;
+
+    /// Every resolution variant of `icon` in `state`; `frame` (0..FRAMES-1) places the laser when OPEN.
+    public static java.awt.Image picture(java.awt.Image icon, String brandColor, State state, boolean dark, int frame) {
+        if (!(icon instanceof MultiResolutionImage mri)) return icon;
+        var glow = awt(Glow.of(brandColor).core());
         var variants = new ArrayList<java.awt.Image>();
-        for (var v : mri.getResolutionVariants()) variants.add(lit((BufferedImage) v, rgb, strength));
+        for (var v : mri.getResolutionVariants()) {
+            var src = (BufferedImage) v;
+            variants.add(switch (state) {
+                case LOCKED -> grey(src, dark);
+                case ACTIVE -> backlit(src, glow, 1.0);
+                case OPEN -> laser(backlit(src, glow, 1.0), dark, frame);
+            });
+        }
         return new BaseMultiResolutionImage(variants.toArray(new java.awt.Image[0]));
     }
 
-    static BufferedImage lit(BufferedImage src, int rgb, double strength) {
+    static Color awt(javafx.scene.paint.Color c) {
+        return new Color((float) c.getRed(), (float) c.getGreen(), (float) c.getBlue());
+    }
+
+    /// Grey, a little faded, still the gate's shape: dark grey would vanish on a dark taskbar, so the
+    /// grey is lifted there.
+    static BufferedImage grey(BufferedImage src, boolean dark) {
+        int w = src.getWidth(), h = src.getHeight();
+        var out = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < h; y++) for (int x = 0; x < w; x++) {
+            int p = src.getRGB(x, y), a = p >>> 24;
+            if (a == 0) continue;
+            int l = (int) Math.round(0.30 * ((p >> 16) & 255) + 0.59 * ((p >> 8) & 255) + 0.11 * (p & 255));
+            l = dark ? 90 + l * 110 / 255 : 70 + l * 120 / 255;
+            out.setRGB(x, y, ((a * 3 / 4) << 24) | (l << 16) | (l << 8) | l);
+        }
+        return out;
+    }
+
+    /// A light behind the shape: the silhouette, widened and blurred, in `light`, under the icon.
+    static BufferedImage backlit(BufferedImage src, Color light, double strength) {
         int w = src.getWidth(), h = src.getHeight();
         var a = new float[w * h];
-        for (int y = 0; y < h; y++) for (int x = 0; x < w; x++) a[y * w + x] = (src.getRGB(x, y) >>> 24) / 255f;
-        int r = Math.max(1, w / 10);
-        var spread = blur(dilate(a, w, h, r), w, h, r);   // reaches out from the shape
-        float gr = (rgb >> 16) & 255, gg = (rgb >> 8) & 255, gb = rgb & 255;
+        for (int i = 0; i < a.length; i++) a[i] = (src.getRGB(i % w, i / w) >>> 24) / 255f;
+        int r = Math.max(1, w / 14);
+        var halo = blur(dilate(a, w, h, r), w, h, r);
         var out = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        float lr = light.getRed(), lg = light.getGreen(), lb = light.getBlue();
         for (int i = 0; i < a.length; i++) {
             int p = src.getRGB(i % w, i / w);
-            float sa = a[i], sr = (p >> 16) & 255, sg = (p >> 8) & 255, sb = p & 255;
-            // inner rim: only the pixels on the shape's outer edge, so the drawing inside stays as drawn
-            float rim = edge(a, w, h, i) ? (float) Math.min(0.6, sa * 0.45 * strength) : 0;
-            sr += (gr - sr) * rim; sg += (gg - sg) * rim; sb += (gb - sb) * rim;
-            // outer halo under the shape
-            float ha = (float) Math.min(1, spread[i] * 0.85 * strength) * (1 - sa);
+            float sa = a[i], ha = (float) Math.min(1, halo[i] * 1.6 * strength) * (1 - sa);
             float oa = sa + ha;
-            float or = oa == 0 ? 0 : (sr * sa + gr * ha) / oa, og = oa == 0 ? 0 : (sg * sa + gg * ha) / oa, ob = oa == 0 ? 0 : (sb * sa + gb * ha) / oa;
+            if (oa <= 0) continue;
+            float or = (((p >> 16) & 255) * sa + lr * ha) / oa, og = (((p >> 8) & 255) * sa + lg * ha) / oa, ob = ((p & 255) * sa + lb * ha) / oa;
             out.setRGB(i % w, i / w, (Math.round(Math.min(1, oa) * 255) << 24) | (Math.round(or) << 16) | (Math.round(og) << 8) | Math.round(ob));
         }
         return out;
     }
 
-    /// An opaque pixel next to an empty one (or the canvas edge).
-    static boolean edge(float[] a, int w, int h, int i) {
-        if (a[i] < 0.5f) return false;
-        int x = i % w, y = i / w;
-        return x == 0 || y == 0 || x == w - 1 || y == h - 1
-            || a[i - 1] < 0.5f || a[i + 1] < 0.5f || a[i - w] < 0.5f || a[i + w] < 0.5f;
+    static final Color AMBER = new Color(0xF2, 0xA9, 0x3B), DEEP_AMBER = new Color(0xE0, 0x6A, 0x00);
+
+    /// Two lasers chasing round the edge of the square, opposite each other: a white head and a tail in
+    /// the lease amber, which no gate icon uses for its body, so the motion stands out on every one.
+    static BufferedImage laser(BufferedImage src, boolean dark, int frame) {
+        int s = src.getWidth();
+        var out = new BufferedImage(s, s, BufferedImage.TYPE_INT_ARGB);
+        var g = out.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
+        g.drawImage(src, 0, 0, null);
+        float sw = Math.max(2.2f, s / 7f), inset = sw / 2;
+        var edge = new RoundRectangle2D.Float(inset, inset, s - sw, s - sw, s / 3f, s / 3f);
+        var points = new ArrayList<Point2D>();
+        var it = edge.getPathIterator(null, 0.25);
+        var c = new float[6];
+        for (; !it.isDone(); it.next()) if (it.currentSegment(c) != PathIterator.SEG_CLOSE) points.add(new Point2D.Float(c[0], c[1]));
+        int n = points.size(), tail = Math.max(3, n / 4);
+        var tailColor = dark ? AMBER : DEEP_AMBER;
+        g.setStroke(new BasicStroke(sw, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        for (int beam = 0; beam < 2; beam++) {
+            int head = (int) ((long) frame * n / FRAMES) + beam * n / 2;
+            for (int k = tail; k >= 1; k--) {
+                var p0 = points.get(((head - k) % n + n) % n);
+                var p1 = points.get(((head - k + 1) % n + n) % n);
+                float t = 1 - (float) k / tail;   // 0 at the tail's end, 1 at the head
+                var col = mix(tailColor, Color.WHITE, t * t * t);
+                g.setColor(new Color(col.getRed(), col.getGreen(), col.getBlue(), Math.round(255 * (0.35f + 0.65f * t))));
+                g.draw(new Line2D.Double(p0, p1));
+            }
+        }
+        g.dispose();
+        return out;
+    }
+
+    static Color mix(Color a, Color b, float t) {
+        return new Color(Math.round(a.getRed() + (b.getRed() - a.getRed()) * t), Math.round(a.getGreen() + (b.getGreen() - a.getGreen()) * t),
+            Math.round(a.getBlue() + (b.getBlue() - a.getBlue()) * t));
     }
 
     static float[] dilate(float[] a, int w, int h, int r) {
@@ -78,13 +141,12 @@ public final class TrayGlow {
     static float[] box(float[] a, int w, int h, int r, boolean horizontal) {
         var out = new float[a.length];
         for (int y = 0; y < h; y++) for (int x = 0; x < w; x++) {
-            float s = 0; int n = 0;
+            float s = 0;
             for (int d = -r; d <= r; d++) {
                 int xx = horizontal ? x + d : x, yy = horizontal ? y : y + d;
                 if (xx >= 0 && yy >= 0 && xx < w && yy < h) s += a[yy * w + xx];
-                n++;   // outside counts as empty, so the edge of the canvas fades too
             }
-            out[y * w + x] = s / n;
+            out[y * w + x] = s / (2 * r + 1);
         }
         return out;
     }
