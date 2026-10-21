@@ -34,5 +34,13 @@ public final class Parts {
         return b;
     }
 
+    /// Makes every button under `root` one the keyboard cannot reach, as `button` does for its own:
+    /// for a window whose buttons were built elsewhere and whose actions are on function keys.
+    public static void mouseOnly(javafx.scene.Node root) {
+        if (root instanceof javafx.scene.control.ButtonBase b) b.setFocusTraversable(false);
+        if (root instanceof javafx.scene.Parent p)
+            for (var child : p.getChildrenUnmodifiable()) mouseOnly(child);
+    }
+
     private Parts() {}
 }

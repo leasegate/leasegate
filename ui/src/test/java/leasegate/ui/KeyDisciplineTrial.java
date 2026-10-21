@@ -55,6 +55,7 @@ public final class KeyDisciplineTrial {
         var grant = ending.grant(me.imagePath(), chain.getFirst(), 60, scope);
         var before = grant.expiresAt();
 
+        scopedKeys();
         typingKeepsItLocked(fx(() -> new ApprovalWindow<>(new Approval.Request<>(Approval.Kind.KEYED, me, chain, tree, scope, "bwgate-cli", "SHA256:example", "a key"), gate, RULES, GIT, d -> {})));
 
         run(List.of(
@@ -84,6 +85,48 @@ public final class KeyDisciplineTrial {
         fx(() -> { fire(target(w.stage), KeyCode.F2); return null; });
         sleep(500);
         check("after two quiet seconds F2 acts", w.decided);
+    }
+
+    /// Keys bound to one part of a window (a tab) act only while that part is showing, so two parts can
+    /// both bind F2; a key bound without a button still refuses a typed key; mouseOnly reaches every
+    /// button however deeply it sits. Everything here runs on the FX thread, so nothing waits on timing.
+    static void scopedKeys() {
+        fx(() -> {
+            var hits = new int[2];
+            var first = new javafx.scene.layout.VBox();
+            var second = new javafx.scene.layout.VBox();
+            second.setVisible(false);
+            new FKeys().bind(KeyCode.F2, () -> hits[0]++).install(first);
+            new FKeys().bind(KeyCode.F2, () -> hits[1]++).install(second);
+            var stage = new Stage();
+            stage.setScene(new javafx.scene.Scene(new javafx.scene.layout.StackPane(first, second), 200, 100));
+            var root = stage.getScene().getRoot();
+
+            fire(root, KeyCode.F2);
+            check("a part's key does nothing while its window is not showing", hits[0] == 0 && hits[1] == 0);
+            stage.show();
+            fire(root, KeyCode.F2);
+            check("F2 acts for the part that is showing, and not for the hidden one", hits[0] == 1 && hits[1] == 0);
+            first.setVisible(false);
+            second.setVisible(true);
+            fire(root, KeyCode.F2);
+            check("once the other part shows, F2 acts for it instead", hits[0] == 1 && hits[1] == 1);
+            fire(root, KeyCode.A);
+            fire(root, KeyCode.ENTER);
+            check("a letter or Enter acts for neither part", hits[0] == 1 && hits[1] == 1);
+            stage.close();
+
+            var refused = false;
+            try { new FKeys().bind(KeyCode.A, () -> {}); } catch (IllegalArgumentException e) { refused = true; }
+            check("a typed key cannot be bound, even without a button", refused);
+
+            var deep = new javafx.scene.control.Button("deep");
+            var top = new javafx.scene.control.CheckBox("top");
+            var tree = new javafx.scene.layout.VBox(top, new javafx.scene.layout.HBox(new javafx.scene.layout.VBox(deep)));
+            Parts.mouseOnly(tree);
+            check("mouseOnly takes every button out of the focus order, however deep", !deep.isFocusTraversable() && !top.isFocusTraversable());
+            return null;
+        });
     }
 
     static boolean aboutGone() {
