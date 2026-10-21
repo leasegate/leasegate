@@ -33,7 +33,7 @@ public final class TrayGlow {
             variants.add(switch (state) {
                 case LOCKED -> grey(src, dark);
                 case ACTIVE -> backlit(src, glow, 1.0);
-                case OPEN -> laser(backlit(src, glow, 1.0), glow, dark, frame);
+                case OPEN -> laser(backlit(src, glow, 1.0), sameHue(src, glow, Math.max(2, Math.round(src.getWidth() / 6f))), glow, dark, frame);
             });
         }
         return new BaseMultiResolutionImage(variants.toArray(new java.awt.Image[0]));
@@ -83,20 +83,24 @@ public final class TrayGlow {
     /// Two lasers chasing round the edge of the square, opposite each other, in the gate's own colour at
     /// full brightness (blue for a blue gate, red for a red one), turning white only at the very head. A
     /// thin dark edge under the beam keeps it visible where it crosses an icon of the same colour.
-    static BufferedImage laser(BufferedImage src, Color glow, boolean dark, int frame) {
+    static BufferedImage laser(BufferedImage src, boolean same, Color glow, boolean dark, int frame) {
         int s = src.getWidth();
         var out = new BufferedImage(s, s, BufferedImage.TYPE_INT_ARGB);
         var g = out.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
         g.drawImage(src, 0, 0, null);
-        float sw = Math.max(2.2f, s / 7f), inset = sw / 2;
+        float sw = Math.max(2.5f, s / 6f), inset = sw / 2;
+        // Where the icon's own edge is the laser's colour (a red square, a blue shield) the beam becomes a
+        // light tint of that colour with a stronger dark edge, so it still stands apart from the body.
+        var beamColor = same ? mix(glow, Color.WHITE, 0.55f) : glow;
+        int underAlpha = same ? 190 : 120;
         var edge = new RoundRectangle2D.Float(inset, inset, s - sw, s - sw, s / 3f, s / 3f);
         var points = new ArrayList<Point2D>();
         var it = edge.getPathIterator(null, 0.25);
         var c = new float[6];
         for (; !it.isDone(); it.next()) if (it.currentSegment(c) != PathIterator.SEG_CLOSE) points.add(new Point2D.Float(c[0], c[1]));
-        int n = points.size(), tail = Math.max(3, n / 4);
+        int n = points.size(), tail = Math.max(3, n * 3 / 10);
         var under = new BasicStroke(sw + Math.max(1.2f, s / 14f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
         var beamStroke = new BasicStroke(sw, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
         for (var pass = 0; pass < 2; pass++) {
@@ -107,9 +111,9 @@ public final class TrayGlow {
                     var p0 = points.get(((head - k) % n + n) % n);
                     var p1 = points.get(((head - k + 1) % n + n) % n);
                     float t = 1 - (float) k / tail;   // 0 at the tail's end, 1 at the head
-                    if (pass == 0) g.setColor(new Color(0, 0, 0, Math.round(110 * (0.3f + 0.7f * t))));
+                    if (pass == 0) g.setColor(new Color(0, 0, 0, Math.round(underAlpha * (0.3f + 0.7f * t))));
                     else {
-                        var col = mix(glow, Color.WHITE, 0.85f * t * t * t * t);
+                        var col = mix(beamColor, Color.WHITE, 0.85f * t * t * t * t);
                         g.setColor(new Color(col.getRed(), col.getGreen(), col.getBlue(), Math.round(255 * (0.5f + 0.5f * t))));
                     }
                     g.draw(new Line2D.Double(p0, p1));
@@ -118,6 +122,24 @@ public final class TrayGlow {
         }
         g.dispose();
         return out;
+    }
+
+    /// Whether the icon's coloured pixels near its edge (within `ring` of the border, where the laser
+    /// runs) share the laser's hue, so a beam of that colour would vanish into them.
+    static boolean sameHue(BufferedImage icon, Color glow, int ring) {
+        int w = icon.getWidth(), h = icon.getHeight(), near = 0, coloured = 0;
+        var target = Color.RGBtoHSB(glow.getRed(), glow.getGreen(), glow.getBlue(), null)[0];
+        for (int y = 0; y < h; y++) for (int x = 0; x < w; x++) {
+            if (Math.min(Math.min(x, y), Math.min(w - 1 - x, h - 1 - y)) >= ring) continue;
+            int p = icon.getRGB(x, y);
+            if ((p >>> 24) < 128) continue;
+            var hsb = Color.RGBtoHSB((p >> 16) & 255, (p >> 8) & 255, p & 255, null);
+            if (hsb[1] < 0.35f || hsb[2] < 0.3f) continue;
+            coloured++;
+            var d = Math.abs(hsb[0] - target);
+            if (Math.min(d, 1 - d) < 40 / 360f) near++;
+        }
+        return coloured > 0 && near * 2 > coloured;
     }
 
     static Color mix(Color a, Color b, float t) {
