@@ -11,10 +11,14 @@ import java.util.Set;
 /// one list serves both.
 public final class KnownPrograms {
 
-    public static final Set<String> SESSION_ROOTS = Set.of("explorer.exe", "launchd");
+    /// The desktop shell, and the system processes above or beside it: an approval anchored at any
+    /// of these would reach everything the user runs.
+    public static final Set<String> SESSION_ROOTS = Set.of("explorer.exe", "launchd",
+        "services.exe", "wininit.exe", "winlogon.exe", "svchost.exe", "lsass.exe", "csrss.exe", "smss.exe",
+        "system", "runtimebroker.exe", "taskhostw.exe", "userinit.exe", "dllhost.exe");
 
     public static final Set<String> TERMINAL_HOSTS = Set.of(
-        "windowsterminal.exe", "tabby.exe", "wt.exe", "terminal", "iterm2", "tabby", "warp", "ghostty", "alacritty", "kitty");
+        "windowsterminal.exe", "tabby.exe", "wt.exe", "mintty.exe", "conemu64.exe", "alacritty.exe", "terminal", "iterm2", "tabby", "warp", "ghostty", "alacritty", "kitty");
 
     public static final Set<String> SHELLS = Set.of(
         "cmd.exe", "powershell.exe", "pwsh.exe", "bash.exe", "sh.exe", "zsh.exe", "fish.exe",

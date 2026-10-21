@@ -37,7 +37,11 @@ public class CategoryClassifierIsolatedNodeTrial {
         check("...even mid-chain, with a resolvable parent above it (name wins over hasParent)",
             CategoryClassifier.classify(namedRoot, 2, 5, tree) == AnchorCategory.SESSION_ROOT);
 
-        var toppedOutMidChain = new AncestryNode(fakePid, "C:\\some\\unknown-top.exe", Optional.of(Instant.now()), 0);
+        var systemProcess = new AncestryNode(fakePid, "C:\\Windows\\System32\\svchost.exe", Optional.of(Instant.now()), 0);
+        check("a Windows system process is session-root too: an approval anchored there reaches everything",
+            CategoryClassifier.classify(systemProcess, 2, 5, tree) == AnchorCategory.SESSION_ROOT);
+
+        var toppedOutMidChain =new AncestryNode(fakePid, "C:\\some\\unknown-top.exe", Optional.of(Instant.now()), 0);
         check("a node that is NOT the sole node, but the trail genuinely ran out above it, is STILL session-root"
             + " (the original defensive behaviour, unchanged for a real multi-hop chain)",
             CategoryClassifier.classify(toppedOutMidChain, 3, 4, tree) == AnchorCategory.SESSION_ROOT);
