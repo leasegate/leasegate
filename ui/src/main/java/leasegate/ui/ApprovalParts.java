@@ -49,7 +49,7 @@ public final class ApprovalParts {
         var box = new VBox(2, small("REQUESTED", "#777"));
         for (var l : rules.describe(s)) box.getChildren().add(line(l.text(), color(l.tone())));
         box.getChildren().add(line("asked for: " + (s.requestedMinutes() == null ? "not specified" : DurationChips.label(s.requestedMinutes())), GREY));
-        if (rules.needsPassphrase(s)) box.getChildren().add(line("This request reaches everything. Approving needs the passphrase.", RED));
+        if (rules.needsPassphrase(s)) box.getChildren().add(line(rules.passphraseReason(s) + " Approving needs the passphrase.", RED));
         return box;
     }
 

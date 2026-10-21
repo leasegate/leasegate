@@ -26,6 +26,11 @@ public interface LeaseRules<S extends Scope<S>> {
     /// Whether approving this request needs the passphrase typed again (tier 1).
     default boolean needsPassphrase(S scope) { return scope.unscoped(); }
 
+    /// Why this request needs the passphrase, in a sentence the approval window shows beside the
+    /// request and in the passphrase prompt. A gate whose passphrase guards something other than
+    /// breadth (an action that cannot be undone, say) says so here.
+    default String passphraseReason(S scope) { return "This request reaches everything this gate guards."; }
+
     /// The request, line by line, for the approval and trust windows.
     List<ScopeLine> describe(S scope);
 

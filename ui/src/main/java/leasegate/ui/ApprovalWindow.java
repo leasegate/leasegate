@@ -137,7 +137,7 @@ final class ApprovalWindow<S extends Scope<S>> {
             cap = row.cap().minutes();
         }
         if (rules.needsPassphrase(r.requested()) && !PassphrasePrompt.confirmOnce(passphraseGate, brand,
-                "confirm a wide approval", "This request reaches everything this gate guards."
+                "confirm this approval", rules.passphraseReason(r.requested())
                     + " Type the passphrase to approve it anyway.")) return;
         decide(Optional.of(new Approval.Decision<>(anchor, minutes, cap, r.requested())));
     }
