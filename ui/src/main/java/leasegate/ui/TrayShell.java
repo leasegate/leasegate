@@ -76,11 +76,44 @@ public final class TrayShell<S extends Scope<S>> {
 
     public void install() {
         icon = FxTray.install(brand.icons().tray(TaskbarTheme.isDark()), product(), popup, home::show);
-        TaskbarTheme.darkProperty().addListener((o, was, dark) -> icon.image(brand.icons().tray(dark)));
-        // Only the tooltip needs to follow the state while nothing is open. A daemon thread rather
+        // Only the tooltip and the icon follow the state while nothing is open. A daemon thread rather
         // than an endless Timeline: a running animation keeps JavaFX's frame clock going (PRP 10).
-        var ticker = Executors.newSingleThreadScheduledExecutor(r -> Thread.ofPlatform().daemon().name(product() + "-tray").unstarted(r));
+        ticker = Executors.newSingleThreadScheduledExecutor(r -> Thread.ofPlatform().daemon().name(product() + "-tray").unstarted(r));
         ticker.scheduleWithFixedDelay(() -> Platform.runLater(this::tick), 0, 1, TimeUnit.SECONDS);
+    }
+
+    java.util.function.Consumer<String> reseal;
+
+    /// A gate that keeps a vault: how to seal it again under a new passphrase (Vault::changePassphrase).
+    public TrayShell<S> vault(java.util.function.Consumer<String> reseal) { this.reseal = reseal; return this; }
+
+    void changePassphrase() {
+        if (passphraseGate.canChange()) PassphraseChange.show(passphraseGate, brand, reseal);
+        else GateFrame.tell(brand, "passphrase", product() + "'s passphrase belongs to the account it unlocks."
+            + " Change it there; " + product() + " takes the new one at the next unlock.");
+    }
+
+    java.util.concurrent.ScheduledExecutorService ticker;
+    final java.util.Map<String, java.awt.Image> pictures = new java.util.HashMap<>();
+    String shownPicture = "";
+    int ticks;
+
+    /// The tray icon for the taskbar theme, lit by the gate's state (TrayGlow): as drawn while locked,
+    /// glowing while open, glowing harder in blanket mode with a short pulse every eight seconds.
+    void showState() {
+        var dark = TaskbarTheme.isDark();
+        var blanket = passphraseGate.isBlanketModeActive();
+        var strength = blanket ? TrayGlow.BLANKET : passphraseGate.isUnlocked() ? TrayGlow.OPEN : 0;
+        var key = dark + ":" + strength;
+        if (!key.equals(shownPicture)) { shownPicture = key; icon.image(picture(dark, strength)); }
+        if (blanket && ++ticks % 8 == 0) {
+            icon.image(picture(dark, TrayGlow.PULSE));
+            ticker.schedule(() -> icon.image(picture(dark, TrayGlow.BLANKET)), 700, TimeUnit.MILLISECONDS);
+        }
+    }
+
+    synchronized java.awt.Image picture(boolean dark, double strength) {
+        return pictures.computeIfAbsent(dark + ":" + strength, k -> TrayGlow.lit(brand.icons().tray(dark), brand.color(), strength));
     }
 
     public static MenuItem item(String text, Runnable action) {
@@ -98,6 +131,7 @@ public final class TrayShell<S extends Scope<S>> {
     void tick() {
         var line = statusLine.get();
         if (!line.equals(tooltip)) { tooltip = line; icon.tooltip(product() + ": " + line); }
+        showState();
     }
 
     /// Brings every item up to date; run whenever the popup or the home window shows them.
@@ -118,6 +152,7 @@ public final class TrayShell<S extends Scope<S>> {
         m.add(blanketItem);
         if (passphraseGate.isBlanketModeActive()) m.add(blanketExtendItem);
         m.add(revokeItem);
+        m.add(item("Change passphrase…", this::changePassphrase));
         m.add(new SeparatorMenuItem());
         m.add(item("Check for updates…", home::checkForUpdates));
         m.add(item("About " + product(), this::about));

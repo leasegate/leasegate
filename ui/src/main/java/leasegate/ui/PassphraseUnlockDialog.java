@@ -44,6 +44,7 @@ public final class PassphraseUnlockDialog {
         var msg = new Label(brand.product() + " is locked. Enter the passphrase to unlock.");
         msg.setWrapText(true);
         var box = new VBox(10, msg, field, error, unlock);
+        if (!gate.hint().isBlank()) box.getChildren().add(2, hintLabel(gate.hint()));
         box.setPadding(new Insets(16));
         box.setPrefWidth(380);
         frame.scene(box);
@@ -53,6 +54,7 @@ public final class PassphraseUnlockDialog {
     static void promptSetup(PassphraseGate gate, Brand brand, String setupNote, String[] typed) {
         var field = new SecretField();
         var confirm = new SecretField();
+        var hint = hintField("");
         var error = errorLabel();
         var frame = new GateFrame(brand, "first run: set the passphrase").modal().notClosable();
         var stage = frame.stage;
@@ -60,6 +62,7 @@ public final class PassphraseUnlockDialog {
             if (!field.getText().equals(confirm.getText())) { error.setText("passphrases don't match"); return; }
             if (!PassphraseGate.isValidPassphrase(field.getText())) { error.setText("the passphrase cannot be blank"); return; }
             if (!gate.setInitialPassphrase(field.getText())) { error.setText("could not set passphrase"); return; }
+            gate.setHint(hint.getText());
             typed[0] = field.getText();
             stage.close();
         });
@@ -67,11 +70,25 @@ public final class PassphraseUnlockDialog {
 
         var msg = new Label("First run: set " + brand.product() + "'s passphrase. " + setupNote);
         msg.setWrapText(true);
-        var box = new VBox(10, msg, field, confirm, error, set);
+        var box = new VBox(10, msg, field, confirm, new Label("Hint, shown when it is asked for (optional; never the passphrase itself)"), hint, error, set);
         box.setPadding(new Insets(16));
         box.setPrefWidth(420);
         frame.scene(box);
         stage.showAndWait();
+    }
+
+    /// "Hint: ..." under the passphrase field, in the human's own words.
+    static Label hintLabel(String hint) {
+        var l = new Label("Hint: " + hint);
+        l.setWrapText(true);
+        l.setStyle("-fx-text-fill: #555; -fx-font-size: 12;");
+        return l;
+    }
+
+    static javafx.scene.control.TextField hintField(String text) {
+        var f = new javafx.scene.control.TextField(text);
+        f.setPromptText("e.g. the name of its entry in your password manager");
+        return f;
     }
 
     static Label errorLabel() {

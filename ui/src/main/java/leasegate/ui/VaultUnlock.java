@@ -35,7 +35,7 @@ public final class VaultUnlock {
             return created.vault();
         }
         while (true) {
-            var p = askPassphrase(brand);
+            var p = askPassphrase(brand, gate.hint());
             if (p == null) { var v = recover(gate, vaultFile, brand); if (v != null) return v; continue; }
             if (!gate.unlock(p)) continue;
             try { return Vault.open(vaultFile, p); }
@@ -44,7 +44,7 @@ public final class VaultUnlock {
     }
 
     /// The passphrase, or null when the human chose "I forgot it".
-    static String askPassphrase(Brand brand) {
+    static String askPassphrase(Brand brand, String hint) {
         var product = brand.product();
         var field = new SecretField();
         var result = new String[] { null };
@@ -56,7 +56,9 @@ public final class VaultUnlock {
         unlock.setOnAction(e -> { result[0] = field.getText(); stage.close(); });
         var lost = new Hyperlink("I forgot the passphrase: use the recovery key");
         lost.setOnAction(e -> { forgot[0] = true; stage.close(); });
-        show(frame, new VBox(10, new Label(product + " is locked. Enter the passphrase to unlock it and its vault."), field, new HBox(10, unlock, lost)));
+        var box = new VBox(10, new Label(product + " is locked. Enter the passphrase to unlock it and its vault."), field, new HBox(10, unlock, lost));
+        if (!hint.isBlank()) box.getChildren().add(2, PassphraseUnlockDialog.hintLabel(hint));
+        show(frame, box);
         return forgot[0] ? null : result[0] == null ? "" : result[0];
     }
 

@@ -43,6 +43,7 @@ public final class PassphraseGate {
     String saltHex;
     String hashHex;
     String kind;
+    String hint = "";
     volatile boolean unlocked;
     volatile Instant blanketModeExpiresAt;
 
@@ -83,6 +84,26 @@ public final class PassphraseGate {
         store(newPassphrase);
         unlocked = true;
         return true;
+    }
+
+    /// Replaces the passphrase once the current one is proved. Not for a gate whose passphrase belongs
+    /// to something else. A gate that keeps a vault re-seals it first (see the ui's PassphraseChange).
+    public synchronized boolean change(String current, String newPassphrase) {
+        if (external != null || !isValidPassphrase(newPassphrase) || !verify(current)) return false;
+        store(newPassphrase);
+        return true;
+    }
+
+    public boolean canChange() { return external == null && hasPassphrase(); }
+
+    /// A reminder the human wrote for themself, shown on the unlock window: where the passphrase is
+    /// kept, say, never the passphrase. Plain text in the passphrase file; empty for none.
+    public String hint() { return hint; }
+
+    public synchronized void setHint(String text) {
+        if (external != null || !hasPassphrase()) return;
+        hint = text == null ? "" : text.strip();
+        write();
     }
 
     public synchronized boolean unlock(String passphrase) {
@@ -151,6 +172,7 @@ public final class PassphraseGate {
             saltHex = root.get("saltHex").asText();
             hashHex = root.get("hashHex").asText();
             kind = root.path("kind").asText("sha256");
+            hint = root.path("hint").asText("");
         } catch (IOException e) {
             throw new RuntimeException("cannot read " + storePath, e);
         }
@@ -162,11 +184,18 @@ public final class PassphraseGate {
         saltHex = HexFormat.of().formatHex(salt);
         hashHex = pbkdf2(salt, passphrase);
         kind = "pbkdf2";
+        write();
+    }
+
+    void write() {
         try {
             Files.createDirectories(storePath.getParent());
             var node = mapper.createObjectNode().put("kind", kind).put("iterations", ITERATIONS)
                 .put("saltHex", saltHex).put("hashHex", hashHex).put("createdAt", Instant.now().toEpochMilli());
-            Files.writeString(upgradedPath(), mapper.writerWithDefaultPrettyPrinter().writeValueAsString(node));
+            if (!hint.isBlank()) node.put("hint", hint);
+            var tmp = upgradedPath().resolveSibling(upgradedPath().getFileName() + ".tmp");
+            Files.writeString(tmp, mapper.writerWithDefaultPrettyPrinter().writeValueAsString(node));
+            Files.move(tmp, upgradedPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING, java.nio.file.StandardCopyOption.ATOMIC_MOVE);
         } catch (IOException e) {
             throw new RuntimeException("cannot write " + upgradedPath(), e);
         }
