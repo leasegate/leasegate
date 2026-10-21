@@ -33,7 +33,7 @@ public final class TrayGlow {
             variants.add(switch (state) {
                 case LOCKED -> grey(src, dark);
                 case ACTIVE -> backlit(src, glow, 1.0);
-                case OPEN -> laser(backlit(src, glow, 1.0), dark, frame);
+                case OPEN -> laser(backlit(src, glow, 1.0), glow, dark, frame);
             });
         }
         return new BaseMultiResolutionImage(variants.toArray(new java.awt.Image[0]));
@@ -78,11 +78,11 @@ public final class TrayGlow {
         return out;
     }
 
-    static final Color AMBER = new Color(0xF2, 0xA9, 0x3B), DEEP_AMBER = new Color(0xE0, 0x6A, 0x00);
+
 
     /// Two lasers chasing round the edge of the square, opposite each other: a white head and a tail in
-    /// the lease amber, which no gate icon uses for its body, so the motion stands out on every one.
-    static BufferedImage laser(BufferedImage src, boolean dark, int frame) {
+    /// the gate's own light (bluish white for a blue gate), deepened on a light taskbar so it still shows.
+    static BufferedImage laser(BufferedImage src, Color glow, boolean dark, int frame) {
         int s = src.getWidth();
         var out = new BufferedImage(s, s, BufferedImage.TYPE_INT_ARGB);
         var g = out.createGraphics();
@@ -96,7 +96,7 @@ public final class TrayGlow {
         var c = new float[6];
         for (; !it.isDone(); it.next()) if (it.currentSegment(c) != PathIterator.SEG_CLOSE) points.add(new Point2D.Float(c[0], c[1]));
         int n = points.size(), tail = Math.max(3, n / 4);
-        var tailColor = dark ? AMBER : DEEP_AMBER;
+        var tailColor = dark ? glow : mix(glow, Color.BLACK, 0.3f);
         g.setStroke(new BasicStroke(sw, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
         for (int beam = 0; beam < 2; beam++) {
             int head = (int) ((long) frame * n / FRAMES) + beam * n / 2;
@@ -104,7 +104,7 @@ public final class TrayGlow {
                 var p0 = points.get(((head - k) % n + n) % n);
                 var p1 = points.get(((head - k + 1) % n + n) % n);
                 float t = 1 - (float) k / tail;   // 0 at the tail's end, 1 at the head
-                var col = mix(tailColor, Color.WHITE, t * t * t);
+                var col = mix(tailColor, Color.WHITE, 0.45f + 0.55f * t);
                 g.setColor(new Color(col.getRed(), col.getGreen(), col.getBlue(), Math.round(255 * (0.35f + 0.65f * t))));
                 g.draw(new Line2D.Double(p0, p1));
             }
