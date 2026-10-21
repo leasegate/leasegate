@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>io.github.leasegate</groupId>
     <artifactId>leasegate-parent</artifactId>
-    <version>0.2-SNAPSHOT</version>
+    <version>0.3-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>leasegate</name>
     <description>Time-limited, scoped, human-approved access to the credentials on a workstation, for CLI tools and AI agents.</description>
