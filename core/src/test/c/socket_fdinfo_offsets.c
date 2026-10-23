@@ -25,7 +25,6 @@ int main(void) {
     P(offsetof(struct in_sockinfo, insi_vflag));
     P(offsetof(struct in_sockinfo, insi_laddr));
     P(offsetof(struct in_sockinfo, insi_faddr));
-    P(sizeof(struct in_addr_4in6));
     V(SOCKINFO_TCP); V(SOCKINFO_IN);
     V(PROX_FDTYPE_SOCKET); V(PROC_PIDLISTFDS); V(PROC_PIDFDSOCKETINFO);
     V(TSI_S_ESTABLISHED); V(INI_IPV4); V(INI_IPV6);
