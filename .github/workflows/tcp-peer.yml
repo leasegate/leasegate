@@ -1,0 +1,49 @@
+name: tcp-peer
+
+on:
+  push:
+    paths: ['core/src/main/java/leasegate/core/peer/**', 'core/src/test/c/**', 'core/src/test/java/leasegate/core/trial/TcpPeerTrial.java', '.github/workflows/tcp-peer.yml']
+  workflow_dispatch:
+
+jobs:
+  trial:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: socket_fdinfo layout matches MacLibproc
+        if: runner.os == 'macOS'
+        run: |
+          sw_vers; uname -m
+          clang -o "$RUNNER_TEMP/offsets" core/src/test/c/socket_fdinfo_offsets.c
+          "$RUNNER_TEMP/offsets" | tee "$RUNNER_TEMP/got.txt"
+          printf '%s\n' \
+            'sizeof(struct proc_fdinfo) = 8' \
+            'offsetof(struct proc_fdinfo, proc_fd) = 0' \
+            'offsetof(struct proc_fdinfo, proc_fdtype) = 4' \
+            'sizeof(struct socket_fdinfo) = 792' \
+            'ABS_psi.soi_kind = 256' \
+            'ABS_psi.soi_proto.pri_tcp.tcpsi_ini.insi_fport = 264' \
+            'ABS_psi.soi_proto.pri_tcp.tcpsi_ini.insi_lport = 268' \
+            'ABS_psi.soi_proto.pri_tcp.tcpsi_ini.insi_vflag = 288' \
+            'ABS_psi.soi_proto.pri_tcp.tcpsi_state = 344' \
+            'SOCKINFO_TCP = 2' 'PROX_FDTYPE_SOCKET = 2' 'PROC_PIDLISTFDS = 1' 'PROC_PIDFDSOCKETINFO = 3' \
+            'TSI_S_ESTABLISHED = 4' 'INI_IPV4 = 1' 'PROC_ALL_PIDS = 1' > "$RUNNER_TEMP/want.txt"
+          missing=$(grep -vxFf "$RUNNER_TEMP/got.txt" "$RUNNER_TEMP/want.txt" || true)
+          if [ -n "$missing" ]; then echo "layout differs from MacLibproc:"; echo "$missing"; exit 1; fi
+      - name: build core
+        run: mvn -B -q -pl core -am test-compile
+      - name: TcpPeerTrial
+        run: |
+          sep=$([ "$RUNNER_OS" = Windows ] && echo ';' || echo ':')
+          java --enable-native-access=ALL-UNNAMED -cp "core/target/classes${sep}core/target/test-classes" leasegate.core.trial.TcpPeerTrial
