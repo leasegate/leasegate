@@ -57,7 +57,11 @@ public final class GateFrame {
     final String subtitle;
     final boolean resizable;
     final Style style;
-    boolean closable = true, taskbar = true;
+    boolean closable = true, taskbar = true, maximizable;
+    /// Where a GLOW window was before it was maximized; null while it is not.
+    javafx.geometry.Rectangle2D restored;
+    Button maxButton;
+    StackPane haloRoot;
     /// Whether the keyboard really types into this window (see Foreground), which is what the glow shows.
     boolean live, painted;
     long hwnd;
@@ -96,6 +100,37 @@ public final class GateFrame {
     /// What the close button and Alt+F4 do. Default: close the window.
     public GateFrame onClose(Runnable r) { onClose = r; return this; }
 
+    /// A maximize button beside close (the zoom light on a mac), and a double-click on the band does
+    /// the same. For a resizable window the human works in, such as a list. `toggleMaximized` is the
+    /// same action, for a function key.
+    public GateFrame maximizable() { maximizable = true; return this; }
+
+    public boolean isMaximized() { return style == Style.GLOW ? restored != null : stage.isMaximized(); }
+
+    /// Fills the screen the window is on (its work area, so the taskbar stays visible), or puts it
+    /// back where it was. A NATIVE window is maximized by the platform (its own animation and snap).
+    /// A GLOW window is a transparent stage the platform cannot maximize: it is sized to the work
+    /// area exactly and drops its halo margin meanwhile, so no part of it lies off the screen (a
+    /// window larger than the screen is clipped by Windows).
+    public void toggleMaximized() {
+        if (style == Style.NATIVE) stage.setMaximized(!stage.isMaximized());
+        else {
+            javafx.geometry.Rectangle2D to;
+            if (restored != null) { to = restored; restored = null; }
+            else {
+                restored = new javafx.geometry.Rectangle2D(stage.getX(), stage.getY(), stage.getWidth(), stage.getHeight());
+                var screens = javafx.stage.Screen.getScreensForRectangle(restored);
+                to = (screens.isEmpty() ? javafx.stage.Screen.getPrimary() : screens.getFirst()).getVisualBounds();
+            }
+            if (haloRoot != null) haloRoot.setPadding(new Insets(restored != null ? 0 : HALO));
+            stage.setX(to.getMinX());
+            stage.setY(to.getMinY());
+            stage.setWidth(to.getWidth());
+            stage.setHeight(to.getHeight());
+        }
+        if (maxButton != null) maxButton.setText(isMaximized() ? "❐" : "☐");
+    }
+
     /// No close button, and Alt+F4 does nothing: the window ends only through its own buttons.
     public GateFrame notClosable() { closable = false; return this; }
 
@@ -126,7 +161,7 @@ public final class GateFrame {
         if (style == Style.GLOW) {
             var band = new BorderPane();
             band.setLeft(left);
-            if (!MAC && closable) band.setRight(winClose());
+            if (!MAC && closable) band.setRight(winButtons());
             glass = glass(band);
             card = new VBox(glass, content);
             card.setStyle("-fx-background-color: white; -fx-background-radius: " + RADIUS + ";");
@@ -139,8 +174,10 @@ public final class GateFrame {
             var lit = new StackPane(card, ring);
             var root = new StackPane(lit);
             root.setPadding(new Insets(HALO));
+            haloRoot = root;
             root.setStyle("-fx-background-color: transparent;");
             dragWith(glass);
+            if (maximizable) glass.addEventHandler(MouseEvent.MOUSE_CLICKED, e -> { if (e.getClickCount() == 2) toggleMaximized(); });
             if (resizable) new EdgeResize(stage, lit).install(root);
             scene = new Scene(root);
             scene.setFill(Color.TRANSPARENT);
@@ -157,7 +194,7 @@ public final class GateFrame {
             header.setRightSystemPadding(false);
             HeaderBar.setDragType(left, HeaderDragType.DRAGGABLE_SUBTREE);
             header.setLeft(left);
-            if (!MAC && closable) header.setRight(winClose());
+            if (!MAC && closable) header.setRight(winButtons());
             // The HeaderBar's slots take only their content's width, so the glass is painted
             // behind the whole bar, not on a slot: it then spans the window however wide it gets.
             glass = glass(header);
@@ -228,17 +265,29 @@ public final class GateFrame {
         handle.addEventHandler(MouseEvent.MOUSE_DRAGGED, e -> { stage.setX(e.getScreenX() - at[0]); stage.setY(e.getScreenY() - at[1]); });
     }
 
-    /// Windows 11 style: a wide flat ✕ at the top right, red on hover.
-    Node winClose() {
-        var b = new Button("✕");
+    /// Windows 11 style at the top right: a wide flat ✕, red on hover, and before it the maximize
+    /// button when the window has one.
+    Node winButtons() {
+        var close = winButton("✕", "#c42b1c", this.style == Style.GLOW ? RADIUS : 0, this::requestClose);
+        if (!maximizable) return close;
+        maxButton = winButton("☐", "rgba(255,255,255,0.18)", 0, this::toggleMaximized);
+        var row = new HBox(maxButton, close);
+        row.setMaxHeight(Region.USE_PREF_SIZE);
+        BorderPane.setAlignment(row, Pos.TOP_RIGHT);
+        HeaderBar.setAlignment(row, Pos.TOP_RIGHT);
+        return row;
+    }
+
+    Button winButton(String glyph, String hover, double corner, Runnable action) {
+        var b = new Button(glyph);
         b.setFocusTraversable(false);
         b.setMnemonicParsing(false);
-        var style = "-fx-background-color: %s; -fx-background-radius: 0 " + (this.style == Style.GLOW ? RADIUS : 0) + " 0 0;"
+        var style = "-fx-background-color: %s; -fx-background-radius: 0 " + corner + " 0 0;"
             + " -fx-text-fill: white; -fx-font-size: 13; -fx-pref-width: 46; -fx-pref-height: 32; -fx-cursor: default;";
         b.setStyle(style.formatted("transparent"));
-        b.setOnMouseEntered(e -> b.setStyle(style.formatted("#c42b1c")));
+        b.setOnMouseEntered(e -> b.setStyle(style.formatted(hover)));
         b.setOnMouseExited(e -> b.setStyle(style.formatted("transparent")));
-        b.setOnAction(e -> requestClose());
+        b.setOnAction(e -> action.run());
         BorderPane.setAlignment(b, Pos.TOP_RIGHT);
         HeaderBar.setAlignment(b, Pos.TOP_RIGHT);
         return b;
@@ -249,7 +298,9 @@ public final class GateFrame {
     Node macLights() {
         var close = light("#ff5f57", "#e0443e");
         close.setOnMouseClicked(e -> requestClose());
-        var row = new HBox(8, close, light("#d6d6d6", "#c4c4c4"), light("#d6d6d6", "#c4c4c4"));
+        var zoom = maximizable ? light("#28c840", "#1aab29") : light("#d6d6d6", "#c4c4c4");
+        if (maximizable) zoom.setOnMouseClicked(e -> toggleMaximized());
+        var row = new HBox(8, close, light("#d6d6d6", "#c4c4c4"), zoom);
         row.setPadding(new Insets(8, 12, 0, 12));
         row.setAlignment(Pos.CENTER_LEFT);
         return row;
