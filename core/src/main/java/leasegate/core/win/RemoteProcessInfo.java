@@ -28,8 +28,45 @@ public final class RemoteProcessInfo {
     static final long CURRENT_DIRECTORY_OFFSET = 0x38;
     static final long COMMAND_LINE_OFFSET = 0x70;
 
+    /// RTL_USER_PROCESS_PARAMETERS.Environment (a pointer) and EnvironmentSize (a SIZE_T, Vista on).
+    static final long ENVIRONMENT_OFFSET = 0x80, ENVIRONMENT_SIZE_OFFSET = 0x3F0, ENVIRONMENT_MAX = 4 << 20;
+
     public static Optional<String> commandLine(long pid) { return readParam(pid, COMMAND_LINE_OFFSET); }
     public static Optional<String> currentDirectory(long pid) { return readParam(pid, CURRENT_DIRECTORY_OFFSET); }
+
+    /// The process's environment block as it stands now, names as written. Empty when it cannot be
+    /// read: a caller that must be sure of what is NOT in it treats empty as a refusal.
+    public static Optional<java.util.Map<String, String>> environment(long pid) {
+        try (var arena = Arena.ofConfined()) {
+            var capture = newCaptureSegment(arena);
+            var proc = (MemorySegment) OpenProcess.invoke(capture, PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_VM_READ, 0, (int) pid);
+            if (proc.address() == 0) return Optional.empty();
+            try {
+                var params = pebAddress(arena, capture, proc)
+                    .flatMap(peb -> { try { return readPointer(arena, capture, proc, peb.address() + PEB_PROCESS_PARAMETERS_OFFSET); } catch (Throwable t) { return Optional.empty(); } });
+                if (params.isEmpty()) return Optional.empty();
+                var block = readPointer(arena, capture, proc, params.get().address() + ENVIRONMENT_OFFSET);
+                var size = readPointer(arena, capture, proc, params.get().address() + ENVIRONMENT_SIZE_OFFSET).map(MemorySegment::address).orElse(0L);
+                if (block.isEmpty() || size <= 0 || size > ENVIRONMENT_MAX) return Optional.empty();
+                var text = arena.allocate(size);
+                if ((int) ReadProcessMemory.invoke(capture, proc, block.get(), text, size, MemorySegment.NULL) == 0) return Optional.empty();
+                return Optional.of(parseEnvironment(new String(text.toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_16LE)));
+            } finally {
+                try { CloseHandle.invoke(proc); } catch (Throwable ignored) {}
+            }
+        } catch (Throwable t) { return Optional.empty(); }
+    }
+
+    /// `NAME=value\0NAME=value\0\0`; the `=C:` entries cmd keeps for drive directories are skipped.
+    static java.util.Map<String, String> parseEnvironment(String block) {
+        var out = new java.util.LinkedHashMap<String, String>();
+        for (var entry : block.split("\0")) {
+            if (entry.isEmpty()) break;
+            var eq = entry.indexOf('=', 1);
+            if (eq > 0 && !entry.startsWith("=")) out.put(entry.substring(0, eq), entry.substring(eq + 1));
+        }
+        return out;
+    }
 
     static Optional<String> readParam(long pid, long unicodeStringOffset) {
         try (var arena = Arena.ofConfined()) {

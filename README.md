@@ -16,7 +16,7 @@ Industry words for the idea are *just-in-time access* and *zero standing privile
 
 ## Modules
 
-- `leasegate-transport` — the client side: framed and raw links over the pipe or socket, keyed-app identity (Ed25519). No UI, one dependency (Jackson).
+- `leasegate-transport` — the client side: framed and raw links over the pipe or socket, keyed-app identity (Ed25519), and the trusted-app client. No UI, one dependency (Jackson).
 - `leasegate-core` — the server side: kernel peer identity, the user-only pipe, the process chain (including through MSYS/Cygwin fork emulation), anchor classification and duration caps, grants, keyed apps, trust, the passphrase, and `LeaseEngine`, which finds a covering grant or asks.
 - `leasegate-ui` — JavaFX: the approval, trust and access windows, passphrase dialogs, expiry warning, tray shell, and vault unlock with a one-time recovery key.
 - `leasegate-vault` — secrets at rest: AES-256-GCM under a random data key, sealed twice (PBKDF2 of the passphrase; a recovery key shown once).
@@ -37,6 +37,30 @@ LeaseServer.serve(LeaseServer.open(home.resolve("run"), "mygate"), "mygate", acc
     // read the request, then: engine.attest(accepted.peer(), chain, scope, label)
 });
 ```
+
+## Trusted apps: long approvals for resident clients
+
+A tray app that talks to a gate all day should not have to be approved every hour, and should not be given a key that works for any program. A trusted app gets a long approval (8 hours offered, at most a day) that is bound to one run of the app (its process id and start time) and to the exact code it runs: the SHA-256 of its exe, and for a Java app the SHA-256 of its jar. Windows only for now.
+
+- **Shared runtimes are refused.** `java.exe`, `node.exe`, `python.exe`, shells, script hosts and the like say nothing about the program they run, so they can never hold one. A Java app runs as its own [jr](https://github.com/jarrunner/jr) exe in `jvm.mode` `dll`. The gate reads the exe's embedded config from the same bytes it hashed, finds the jar that config launches, and hashes that too. It refuses a jr launcher with no config of its own, a `-Xjr:` option on the command line, and `JAVA_TOOL_OPTIONS`, `JDK_JAVA_OPTIONS` or `_JAVA_OPTIONS` in the app's environment, because each of those can change what runs without changing the exe.
+- **Two levels, shown in the approval window.** A dev build is checked locally, by hash only. A verified app has also declared its GitHub project and release assets: the gate downloads them itself over HTTPS and they must match the local files byte for byte. The window then shows a green tick with the organisation, repository and release tag. The tick never approves anything. The human still types the passphrase.
+- **Code changes are noticed.** A changed exe or jar makes the app an ordinary client again. Trusting it again shows the old and new hashes side by side.
+- **Delegated unlock.** An app with an open approval can ask the gate to show its passphrase prompt on the app's behalf. The app keeps no password and never sees the passphrase. It only receives an answer saying the right one was typed.
+- **Signed replies.** Every reply is signed with the gate's Ed25519 key over the app's fresh nonce, the caller's pid and start time, and the hashes. The app checks the reply against the gate's `trusted-apps.pub`. A process squatting the gate's address, or replaying an old answer, gets nowhere.
+- **Status, and the app's side of the contract.** `status` says whether this run's approval is open and until when. If it is not open, it says why: not trusted, code changed, expired, ended, or refused. The app must lock its own UI whenever the answer is not `open`, because the gate cannot enforce that.
+- **The host locks on its own clock.** An open long approval keeps working through the host's idle lock, with only the material it needs (`MaterialSource`) held in memory. That material is zero-filled when the approval ends. When the user locks the host on purpose, the host calls `LongApprovalsOnLock.ask`, which lists the open approvals so one key can end them all.
+
+```java
+var trusted = FxTrustedApps.install(new TrustedApps<>(home, rules, gate, audit::log), rules, gate, brand)
+    .material((app, scope, passphrase) -> new HeldMaterial(Map.of("token", tokenFor(scope, passphrase))))
+    .start();
+// in the host's loopback handler, with the pid the kernel names for the connection:
+reply(trusted.handle(peerPid, requestJson));
+// on each later request from that process:
+trusted.approvalFor(peerPid).filter(a -> a.scope().covers(requested)).ifPresentOrElse(..., ...);
+```
+
+On the app's side, `TrustedClient` (in `leasegate-transport`) builds the requests and accepts only genuine replies.
 
 ## Status
 

@@ -35,7 +35,7 @@ public final class GateWindowsTrial extends Application {
         @Override public List<ScopeLine> describe(Items s) { return List.of(summary(s)); }
         @Override public ScopeLine summary(Items s) { return s.unscoped() ? ScopeLine.wide("every repository") : ScopeLine.narrow("push to " + String.join(", ", s.items())); }
         @Override public void writeScope(ObjectNode n, Items s) {}
-        @Override public Items readScope(JsonNode n) { return null; }
+        @Override public Items readScope(JsonNode n) { return new Items(null, null); }
         @Override public Items stored(Items s) { return new Items(s.items(), null); }
     };
 
