@@ -9,9 +9,16 @@ import javafx.scene.paint.Color;
 /// top to the bright hue at the bottom, as light falls on glass.
 record Glow(Color core, Color outer, Color tint) {
 
+    /// Below this chroma (largest minus smallest channel, 0 to 1) a brand colour is black, white or grey, and its hue is noise
+    /// (#16181D has a hue of 225 from a blue channel 7 higher than the red): clamping the saturation up would paint a saturated
+    /// blue rim around a black window. Chroma, not HSB saturation: saturation is relative to brightness, so a near-black reads 0.24.
+    static final double ACHROMATIC = 0.1;
+
     static Glow of(String brandColor) {
         var c = Color.web(brandColor);
         double h = c.getHue(), s = c.getSaturation();
+        double chroma = Math.max(c.getRed(), Math.max(c.getGreen(), c.getBlue())) - Math.min(c.getRed(), Math.min(c.getGreen(), c.getBlue()));
+        if (chroma < ACHROMATIC) return new Glow(Color.gray(0.62, 0.9), Color.gray(0.45, 0.5), Color.gray(0.86));
         return new Glow(Color.hsb(h, clamp(s, 0.55, 1), 1, 0.9), Color.hsb(h, clamp(s * 0.85, 0.45, 0.9), 1, 0.5),
             Color.hsb(h, clamp(s * 0.3, 0.1, 0.35), 1));
     }

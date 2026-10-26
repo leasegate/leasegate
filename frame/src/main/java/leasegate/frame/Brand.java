@@ -22,7 +22,7 @@ public record Brand(String product, String color, GateIcons icons) {
     /// The gate's big mark for a home or about window: its picture, its name in its colour, and a
     /// line saying what it guards, so two gates' windows are told apart at a glance.
     public Node logo(double size, String tagline) {
-        var view = new ImageView(icon());
+        var view = new ImageView(icons.header(size));
         view.setFitWidth(size);
         view.setFitHeight(size);
         view.setPreserveRatio(true);
@@ -45,10 +45,11 @@ public record Brand(String product, String color, GateIcons icons) {
     /// The band's content: icon on a white plate, the gate's name, and what this window is.
     /// GateFrame paints the colour behind it and makes it the title bar.
     Node header(String subtitle) {
-        var view = new ImageView(icon());
+        var view = new ImageView(icons.header(40));
         view.setFitWidth(40);
         view.setFitHeight(40);
         view.setPreserveRatio(true);
+        view.setSmooth(true);
         var plate = new StackPane(view);
         plate.setPadding(new Insets(3));
         plate.setStyle("-fx-background-color: white; -fx-background-radius: 10;");

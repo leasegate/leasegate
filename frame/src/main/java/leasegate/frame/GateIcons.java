@@ -38,6 +38,17 @@ public record GateIcons(Class<?> owner, String name) {
     /// The large light picture, shown on the white plate in a window's band.
     public Image header() { return fx(false, 256); }
 
+    /// The large picture for a spot `logical` pixels wide: scaled ONCE, with the loader's own filter, to the pixels the
+    /// screen really has there (125% scaling makes 40 into 50). Drawing the 256 px bitmap into a 40 px ImageView instead
+    /// samples it with no averaging, which is what made the logo stair-stepped.
+    public Image header(double logical) {
+        var px = (int) Math.round(logical * Math.max(1, javafx.stage.Screen.getPrimary().getOutputScaleX()));
+        try (var in = owner.getResourceAsStream(resource(false, 256))) {
+            if (in == null) throw new IllegalStateException("icon missing beside " + owner.getName() + ": " + resource(false, 256));
+            return new Image(in, px, px, true, true);
+        } catch (IOException e) { throw new IllegalStateException(e); }
+    }
+
     String resource(boolean dark, int size) { return name + (dark ? "-dark-" : "-") + size + ".png"; }
 
     Image fx(boolean dark, int size) {

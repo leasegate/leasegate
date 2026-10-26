@@ -8,7 +8,7 @@ import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
-import javafx.scene.layout.HBox;
+import javafx.scene.layout.FlowPane;
 
 /// The keys of a window that has text fields: letters belong to typing, so actions are function
 /// keys, Enter commits and Esc cancels. Each binding is declared once and becomes both the key and
@@ -19,11 +19,16 @@ import javafx.scene.layout.HBox;
 public final class FKeys {
 
     final Map<KeyCode, Runnable> bound = new LinkedHashMap<>();
-    public final HBox bar = new HBox(8);
+    boolean dark;
+    /// The legend. A row that does not fit wraps onto a second line; no chip is ever cut short.
+    public final FlowPane bar = new FlowPane(6, 5);
+
+    /// For a window with a dark body: the chips are dimmer tints with lightened text. Call before `bind`.
+    public FKeys dark() { dark = true; return this; }
 
     public FKeys bind(KeyCode key, String label, String color, Runnable action) {
         bind(key, action);
-        bar.getChildren().add(Parts.button(name(key) + "  " + label, color, action));
+        bar.getChildren().add(Parts.button(name(key) + "  " + label, color, dark, action));
         return this;
     }
 
